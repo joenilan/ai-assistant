@@ -1,0 +1,1238 @@
+{
+  "qwen25_15b": {
+    "model": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+    "prefix": "",
+    "cold_ready_s": 11.026955604553223,
+    "rss_kb": 2021584,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "A good desktop AI assistant feels useful by consistently providing relevant and timely information, and by addressing user needs promptly.",
+        "elapsed_s": 4.515564680099487,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 71,
+          "prompt_ms": 1408.878,
+          "prompt_per_token_ms": 19.843352112676055,
+          "prompt_per_second": 50.394711252500215,
+          "predicted_n": 23,
+          "predicted_ms": 3098.475,
+          "predicted_per_token_ms": 134.71630434782608,
+          "predicted_per_second": 7.423006478993699
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "A local-first AI assistant is like a personal helper that uses the devices you're already close to, like your phone or computer, to understand and respond to your questions and needs. It's designed to work best with the devices you use most often, making it easier to get the information or help you need right when you need it.",
+        "elapsed_s": 9.786416053771973,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 25,
+          "prompt_ms": 475.628,
+          "prompt_per_token_ms": 19.02512,
+          "prompt_per_second": 52.56208633638053,
+          "predicted_n": 68,
+          "predicted_ms": 9304.747,
+          "predicted_per_token_ms": 136.83451470588236,
+          "predicted_per_second": 7.308097683902637
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "If you are not sure about a fact, instead of guessing, you should look it up. This can be done by using reliable sources such as books, articles, or reputable websites. If you're unsure about the accuracy of the information, you might also consider asking a knowledgeable person or consulting a trusted authority on the subject. This approach ensures that you have accurate and reliable information.",
+        "elapsed_s": 12.27030086517334,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 31,
+          "prompt_ms": 799.26,
+          "prompt_per_token_ms": 25.78258064516129,
+          "prompt_per_second": 38.78587693616595,
+          "predicted_n": 77,
+          "predicted_ms": 11463.647,
+          "predicted_per_token_ms": 148.87853246753247,
+          "predicted_per_second": 6.716885123905159
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "1. Design and develop the user interface.\n2. Implement core functionality for basic tasks.\n3. Conduct initial user testing and gather feedback.",
+        "elapsed_s": 4.825819730758667,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 27,
+          "prompt_ms": 650.423,
+          "prompt_per_token_ms": 24.08974074074074,
+          "prompt_per_second": 41.511447165921254,
+          "predicted_n": 29,
+          "predicted_ms": 4168.724,
+          "predicted_per_token_ms": 143.74910344827586,
+          "predicted_per_second": 6.956565126403187
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect to the Raspberry Pi backend at http://192.168.1.151:18080 by default. The user should be able to change the model used for inference.",
+        "elapsed_s": 9.715019226074219,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 105,
+          "prompt_ms": 1942.941,
+          "prompt_per_token_ms": 18.5042,
+          "prompt_per_second": 54.04178510824569,
+          "predicted_n": 49,
+          "predicted_ms": 7765.301,
+          "predicted_per_token_ms": 158.4755306122449,
+          "predicted_per_second": 6.310122427965123
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "Remember this: my preferred assistant voice should be calm and brief.",
+        "response": "Understood. My voice will be calm and brief, as requested.",
+        "elapsed_s": 3.1739134788513184,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 18,
+          "prompt_ms": 768.046,
+          "prompt_per_token_ms": 42.669222222222224,
+          "prompt_per_second": 23.4360962754835,
+          "predicted_n": 15,
+          "predicted_ms": 2398.617,
+          "predicted_per_token_ms": 159.9078,
+          "predicted_per_second": 6.2536036390970295
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "The voice style you asked for is calm and brief.",
+        "elapsed_s": 2.0697996616363525,
+        "timings": {
+          "cache_n": 71,
+          "prompt_n": 18,
+          "prompt_ms": 374.911,
+          "prompt_per_token_ms": 20.828388888888888,
+          "prompt_per_second": 48.01139470434317,
+          "predicted_n": 12,
+          "predicted_ms": 1689.804,
+          "predicted_per_token_ms": 140.817,
+          "predicted_per_second": 7.101415312071696
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "What version of Windows am I using right now?",
+        "response": "I'm sorry, but as a text-based AI, I don't have the capability to determine the version of Windows you are currently using. To find out which version of Windows you are running, you would need to open the Windows System Information tool or check the version number in the system properties.",
+        "elapsed_s": 9.757946491241455,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 15,
+          "prompt_ms": 357.427,
+          "prompt_per_token_ms": 23.828466666666667,
+          "prompt_per_second": 41.9666113639988,
+          "predicted_n": 60,
+          "predicted_ms": 9394.176,
+          "predicted_per_token_ms": 156.56959999999998,
+          "predicted_per_second": 6.386935905820799
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "For the first prototype, it might be beneficial to start with voice. This is because voice interactions are often more intuitive and natural for users, especially when it comes to everyday tasks. You can start by creating a simple voice interface that allows users to perform basic actions, such as finding information or making simple commands. This can help you gather feedback and refine your prototype before moving on to text-based interactions.",
+        "elapsed_s": 12.268717527389526,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 26,
+          "prompt_ms": 534.215,
+          "prompt_per_token_ms": 20.54673076923077,
+          "prompt_per_second": 48.669543161461206,
+          "predicted_n": 81,
+          "predicted_ms": 11728.38,
+          "predicted_per_token_ms": 144.7948148148148,
+          "predicted_per_second": 6.906324658648509
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "The app should first attempt to find the answer using its local knowledge base. If it can't find the answer, it should then use the model to search the internet for the most accurate and up-to-date information.",
+        "elapsed_s": 6.986892461776733,
+        "timings": {
+          "cache_n": 40,
+          "prompt_n": 31,
+          "prompt_ms": 776.34,
+          "prompt_per_token_ms": 25.043225806451613,
+          "prompt_per_second": 39.93095808537497,
+          "predicted_n": 44,
+          "predicted_ms": 6202.869,
+          "predicted_per_token_ms": 140.97429545454546,
+          "predicted_per_second": 7.093491737452459
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "\"Good day, fellow traveler! \ud83c\udf1f\"",
+        "elapsed_s": 2.0283563137054443,
+        "timings": {
+          "cache_n": 41,
+          "prompt_n": 20,
+          "prompt_ms": 450.036,
+          "prompt_per_token_ms": 22.5018,
+          "prompt_per_second": 44.44088917331058,
+          "predicted_n": 12,
+          "predicted_ms": 1571.529,
+          "predicted_per_token_ms": 130.96075,
+          "predicted_per_second": 7.635875634493541
+        }
+      }
+    ]
+  },
+  "gemma3_1b": {
+    "model": "gemma-3-1b-it-Q4_K_M.gguf",
+    "prefix": "",
+    "cold_ready_s": 3.0057284832000732,
+    "rss_kb": 1415280,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "A good assistant anticipates your needs and responds quickly, without interrupting or asking unnecessary questions. It also offers helpful, relevant information and respects your privacy.",
+        "elapsed_s": 4.645823955535889,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 69,
+          "prompt_ms": 1798.983,
+          "prompt_per_token_ms": 26.072217391304346,
+          "prompt_per_second": 38.355003910542784,
+          "predicted_n": 30,
+          "predicted_ms": 2840.787,
+          "predicted_per_token_ms": 94.6929,
+          "predicted_per_second": 10.560453846064489
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "Okay, here\u2019s a simple explanation: A local-first AI assistant means it\u2019s designed to work best when it\u2019s running on your own computer or device, rather than relying on a cloud-based service. Think of it as having a really smart helper that\u2019s always right there, rather than needing to go to a faraway place for information.",
+        "elapsed_s": 8.787002801895142,
+        "timings": {
+          "cache_n": 36,
+          "prompt_n": 25,
+          "prompt_ms": 602.43,
+          "prompt_per_token_ms": 24.097199999999997,
+          "prompt_per_second": 41.49859734740966,
+          "predicted_n": 74,
+          "predicted_ms": 8178.586,
+          "predicted_per_token_ms": 110.52143243243243,
+          "predicted_per_second": 9.048018814010147
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "Okay, I understand. \n\nIf I\u2019m unsure about something, I\u2019ll let you know. I\u2019ll try to explain why I\u2019m unsure and suggest a quick way to find the answer. \n\nFor example, instead of saying \u201cThat\u2019s a really old thing,\u201d I\u2019ll say, \u201cI\u2019m not sure about that \u2013 I can quickly look it up for you.\u201d",
+        "elapsed_s": 11.77030873298645,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 67,
+          "prompt_ms": 1364.114,
+          "prompt_per_token_ms": 20.359910447761195,
+          "prompt_per_second": 49.116129590342155,
+          "predicted_n": 84,
+          "predicted_ms": 10400.695,
+          "predicted_per_token_ms": 123.81779761904761,
+          "predicted_per_second": 8.076383357073734
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "Okay, here are three bullet points for the first milestones:\n\n*   **Data Source Integration:** Connect to local file systems.\n*   **Basic Voice Command Handling:** Respond to simple requests.\n*   **User Profile Setup:** Create initial user accounts.",
+        "elapsed_s": 6.796841621398926,
+        "timings": {
+          "cache_n": 36,
+          "prompt_n": 27,
+          "prompt_ms": 637.856,
+          "prompt_per_token_ms": 23.624296296296297,
+          "prompt_per_second": 42.32930316560478,
+          "predicted_n": 54,
+          "predicted_ms": 6152.915,
+          "predicted_per_token_ms": 113.94287037037037,
+          "predicted_per_second": 8.776327968125678
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect to http://192.168.1.151:18080. The user can change the default model.",
+        "elapsed_s": 6.77574348449707,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 147,
+          "prompt_ms": 3159.185,
+          "prompt_per_token_ms": 21.491054421768705,
+          "prompt_per_second": 46.53098821373234,
+          "predicted_n": 37,
+          "predicted_ms": 3610.101,
+          "predicted_per_token_ms": 97.5702972972973,
+          "predicted_per_second": 10.249020733768944
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "Remember this: my preferred assistant voice should be calm and brief.",
+        "response": "Okay, I understand. How can I help you today?",
+        "elapsed_s": 1.9287121295928955,
+        "timings": {
+          "cache_n": 36,
+          "prompt_n": 18,
+          "prompt_ms": 516.747,
+          "prompt_per_token_ms": 28.708166666666664,
+          "prompt_per_second": 34.83329366208222,
+          "predicted_n": 13,
+          "predicted_ms": 1404.854,
+          "predicted_per_token_ms": 108.06569230769232,
+          "predicted_per_second": 9.253630626385375
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "I apologize, but I don\u2019t have access to your previous conversations. I am a new AI and have no memory of past interactions. \n\nTo help me understand, could you please tell me what you were asking me to do?",
+        "elapsed_s": 5.832204580307007,
+        "timings": {
+          "cache_n": 66,
+          "prompt_n": 18,
+          "prompt_ms": 499.395,
+          "prompt_per_token_ms": 27.744166666666665,
+          "prompt_per_second": 36.04361277145346,
+          "predicted_n": 49,
+          "predicted_ms": 5328.519,
+          "predicted_per_token_ms": 108.74528571428571,
+          "predicted_per_second": 9.195800934556111
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "What version of Windows am I using right now?",
+        "response": "I\u2019m sorry, but I do not have access to your computer\u2019s operating system. I am a language model and do not have the ability to access your device.",
+        "elapsed_s": 4.193223714828491,
+        "timings": {
+          "cache_n": 36,
+          "prompt_n": 15,
+          "prompt_ms": 370.656,
+          "prompt_per_token_ms": 24.7104,
+          "prompt_per_second": 40.46879046879047,
+          "predicted_n": 36,
+          "predicted_ms": 3817.027,
+          "predicted_per_token_ms": 106.02852777777778,
+          "predicted_per_second": 9.431423985211527
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "\u201cFor a prototype, text is usually a good starting point. It\u2019s easier to iterate on quickly.\u201d",
+        "elapsed_s": 3.720855712890625,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 62,
+          "prompt_ms": 1320.482,
+          "prompt_per_token_ms": 21.29809677419355,
+          "prompt_per_second": 46.95255217413036,
+          "predicted_n": 23,
+          "predicted_ms": 2395.595,
+          "predicted_per_token_ms": 104.15630434782608,
+          "predicted_per_second": 9.600955086314674
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "Okay, here\u2019s how we\u2019ll handle that: \u201cI don\u2019t have that information, but I can quickly search for it for you.\u201d  Then, if I can\u2019t find the answer, I\u2019ll immediately tell the user, \u201cI\u2019m sorry, I don\u2019t have that information.  Let me quickly check a reliable source.\u201d",
+        "elapsed_s": 9.196256637573242,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 68,
+          "prompt_ms": 1739.251,
+          "prompt_per_token_ms": 25.577220588235292,
+          "prompt_per_second": 39.09728958039984,
+          "predicted_n": 75,
+          "predicted_ms": 7451.996,
+          "predicted_per_token_ms": 99.35994666666667,
+          "predicted_per_second": 10.064417640589179
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "\u201cGood morning! How can I help you today?\u201d",
+        "elapsed_s": 2.2194902896881104,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 58,
+          "prompt_ms": 1302.413,
+          "prompt_per_token_ms": 22.45539655172414,
+          "prompt_per_second": 44.53272502654688,
+          "predicted_n": 12,
+          "predicted_ms": 910.186,
+          "predicted_per_token_ms": 75.84883333333333,
+          "predicted_per_second": 13.184118410962157
+        }
+      }
+    ]
+  },
+  "smollm2_17b": {
+    "model": "SmolLM2-1.7B-Instruct-Q4_K_M.gguf",
+    "prefix": "",
+    "cold_ready_s": 9.01471996307373,
+    "rss_kb": 2695728,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "A good assistant feels useful when it anticipates and fulfills your needs, provides helpful suggestions, and respects your time and preferences.",
+        "elapsed_s": 6.647878170013428,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 72,
+          "prompt_ms": 2320.414,
+          "prompt_per_token_ms": 32.22797222222223,
+          "prompt_per_second": 31.028945696759283,
+          "predicted_n": 27,
+          "predicted_ms": 4322.448,
+          "predicted_per_token_ms": 160.0906666666667,
+          "predicted_per_second": 6.246460339141153
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "A local-first AI assistant is a type of artificial intelligence that is designed to work within a specific geographic area or region, rather than connecting to the internet or other external systems. This means it can provide information, answer questions, and perform tasks without needing to access the internet or other external networks. It's a local AI assistant, hence the term \"local-first.\"",
+        "elapsed_s": 13.478839874267578,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 26,
+          "prompt_ms": 653.674,
+          "prompt_per_token_ms": 25.14130769230769,
+          "prompt_per_second": 39.77517845286795,
+          "predicted_n": 76,
+          "predicted_ms": 12812.329,
+          "predicted_per_token_ms": 168.58327631578948,
+          "predicted_per_second": 5.9317864847210835
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "If I'm unsure about a fact, I should look it up instead of guessing.",
+        "elapsed_s": 3.7821826934814453,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 32,
+          "prompt_ms": 814.55,
+          "prompt_per_token_ms": 25.4546875,
+          "prompt_per_second": 39.28549505862133,
+          "predicted_n": 18,
+          "predicted_ms": 2946.306,
+          "predicted_per_token_ms": 163.68366666666668,
+          "predicted_per_second": 6.1093450578453155
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "1. Development of user interface\n2. Integration with voice assistants\n3. Testing and iteration phases",
+        "elapsed_s": 4.124269247055054,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 28,
+          "prompt_ms": 699.782,
+          "prompt_per_token_ms": 24.992214285714287,
+          "prompt_per_second": 40.01246102357591,
+          "predicted_n": 21,
+          "predicted_ms": 3412.432,
+          "predicted_per_token_ms": 162.49676190476188,
+          "predicted_per_second": 6.153968782381598
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect to the Raspberry Pi backend by default. It should let the user change the default model (e.g., from qwen2.5-1.5b-instruct-q4_k_m.gguf to Gemma 3 1B).",
+        "elapsed_s": 13.477091073989868,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 116,
+          "prompt_ms": 2639.219,
+          "prompt_per_token_ms": 22.75188793103448,
+          "prompt_per_second": 43.95239652336544,
+          "predicted_n": 61,
+          "predicted_ms": 10822.855,
+          "predicted_per_token_ms": 177.4238524590164,
+          "predicted_per_second": 5.6362207569074885
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "Remember this: my preferred assistant voice should be calm and brief.",
+        "response": "I'll keep that in mind. I'll strive to provide calm and brief responses.",
+        "elapsed_s": 3.5354654788970947,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 19,
+          "prompt_ms": 590.989,
+          "prompt_per_token_ms": 31.10468421052632,
+          "prompt_per_second": 32.14949855242652,
+          "predicted_n": 18,
+          "predicted_ms": 2912.649,
+          "predicted_per_token_ms": 161.81383333333332,
+          "predicted_per_second": 6.1799413523565665
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "You asked for a calm and brief voice style.",
+        "elapsed_s": 2.193323850631714,
+        "timings": {
+          "cache_n": 75,
+          "prompt_n": 19,
+          "prompt_ms": 502.76,
+          "prompt_per_token_ms": 26.461052631578948,
+          "prompt_per_second": 37.791391518816134,
+          "predicted_n": 11,
+          "predicted_ms": 1687.066,
+          "predicted_per_token_ms": 153.36963636363637,
+          "predicted_per_second": 6.520195416184073
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "What version of Windows am I using right now?",
+        "response": "As an AI, I don't have real-time access to your system's information. However, I can guide you on how to check your system's version.\n\n1. Press the Windows key + R to open the \"Run\" dialog box.\n2. Type \"winver\" and press Enter.\n3. The system version will be displayed.",
+        "elapsed_s": 15.169876337051392,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 16,
+          "prompt_ms": 385.674,
+          "prompt_per_token_ms": 24.104625,
+          "prompt_per_second": 41.485814444323445,
+          "predicted_n": 74,
+          "predicted_ms": 14771.051,
+          "predicted_per_token_ms": 199.6087972972973,
+          "predicted_per_second": 5.009799235003657
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "For the first prototype, it's often more efficient to start with text-based input. This allows you to focus on the core functionality and logic of your app without the added complexity of voice recognition. However, if you plan to integrate voice commands later, starting with text input can make it easier to adapt to voice-based commands in the future.",
+        "elapsed_s": 13.330714464187622,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 27,
+          "prompt_ms": 710.941,
+          "prompt_per_token_ms": 26.33114814814815,
+          "prompt_per_second": 37.97783501021885,
+          "predicted_n": 71,
+          "predicted_ms": 12605.058,
+          "predicted_per_token_ms": 177.5360281690141,
+          "predicted_per_second": 5.632659524454389
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "If a user asks for a current fact I do not know, the app should first ask the user for clarification or additional information to better understand their request. If the user is unable to provide more context, the app can then look up the requested information and provide it to the user.",
+        "elapsed_s": 10.423632860183716,
+        "timings": {
+          "cache_n": 40,
+          "prompt_n": 32,
+          "prompt_ms": 940.695,
+          "prompt_per_token_ms": 29.39671875,
+          "prompt_per_second": 34.01740202722455,
+          "predicted_n": 58,
+          "predicted_ms": 9460.193,
+          "predicted_per_token_ms": 163.10677586206896,
+          "predicted_per_second": 6.130953142287901
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "\"Hello, it's a pleasure to assist you today. I'm here to help with any questions or tasks you need assistance with.\"",
+        "elapsed_s": 5.162184953689575,
+        "timings": {
+          "cache_n": 41,
+          "prompt_n": 22,
+          "prompt_ms": 748.805,
+          "prompt_per_token_ms": 34.036590909090904,
+          "prompt_per_second": 29.380145698813443,
+          "predicted_n": 28,
+          "predicted_ms": 4391.418,
+          "predicted_per_token_ms": 156.83635714285714,
+          "predicted_per_second": 6.376072603427868
+        }
+      }
+    ]
+  },
+  "qwen25_3b": {
+    "model": "qwen2.5-3b-instruct-q4_k_m.gguf",
+    "prefix": "",
+    "cold_ready_s": 17.02582335472107,
+    "rss_kb": 3842976,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "A good assistant feels useful when it anticipates and responds to your needs promptly and accurately, and feels annoying when it fails to understand or assist effectively.",
+        "elapsed_s": 13.299135684967041,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 71,
+          "prompt_ms": 3496.389,
+          "prompt_per_token_ms": 49.24491549295775,
+          "prompt_per_second": 20.306664962050846,
+          "predicted_n": 31,
+          "predicted_ms": 9794.643,
+          "predicted_per_token_ms": 315.95622580645164,
+          "predicted_per_second": 3.164995395952665
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "A local-first AI assistant is designed to handle tasks and provide information primarily using resources available on your local device, like your computer or smartphone. This means it doesn't rely as much on the internet or cloud services, making it faster and more private. It can still use the internet when needed, but it tries to minimize that to keep your data and activities private.",
+        "elapsed_s": 23.463077068328857,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 25,
+          "prompt_ms": 1371.537,
+          "prompt_per_token_ms": 54.86148,
+          "prompt_per_second": 18.227725537116388,
+          "predicted_n": 74,
+          "predicted_ms": 22085.159,
+          "predicted_per_token_ms": 298.4480945945946,
+          "predicted_per_second": 3.3506663909460648
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "If you are not sure about a fact, the best approach is to look it up. You can use a search engine, a fact-checking website, or even ask a knowledgeable person for confirmation. This way, you can find the correct information without making a guess.",
+        "elapsed_s": 17.910926818847656,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 31,
+          "prompt_ms": 1641.449,
+          "prompt_per_token_ms": 52.94996774193549,
+          "prompt_per_second": 18.885752770875,
+          "predicted_n": 55,
+          "predicted_ms": 16262.045,
+          "predicted_per_token_ms": 295.67354545454543,
+          "predicted_per_second": 3.382108461758653
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "- Initial user interface design completed\n- Basic functionality testing started\n- First set of FAQs ready for users",
+        "elapsed_s": 7.774951219558716,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 27,
+          "prompt_ms": 1424.041,
+          "prompt_per_token_ms": 52.74225925925926,
+          "prompt_per_second": 18.960128254734236,
+          "predicted_n": 22,
+          "predicted_ms": 6343.799,
+          "predicted_per_token_ms": 288.3545,
+          "predicted_per_second": 3.4679535086152637
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect by default to http://192.168.1.151:18080. It should let the user change the model, as the default model (qwen2.5-1.5b-instruct-q4_k_m.gguf) is just one option and users may prefer others.",
+        "elapsed_s": 28.055874347686768,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 105,
+          "prompt_ms": 6101.946,
+          "prompt_per_token_ms": 58.113771428571425,
+          "prompt_per_second": 17.207625239554726,
+          "predicted_n": 74,
+          "predicted_ms": 21947.282,
+          "predicted_per_token_ms": 296.58489189189186,
+          "predicted_per_second": 3.3717159145264546
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "Remember this: my preferred assistant voice should be calm and brief.",
+        "response": "Understood, I'll keep the responses calm and to the point. How can I assist you today?",
+        "elapsed_s": 7.381209850311279,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 18,
+          "prompt_ms": 1251.856,
+          "prompt_per_token_ms": 69.54755555555556,
+          "prompt_per_second": 14.378650579619382,
+          "predicted_n": 22,
+          "predicted_ms": 6118.59,
+          "predicted_per_token_ms": 278.1177272727273,
+          "predicted_per_second": 3.5955996397862906
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "You asked for a voice that is calm and brief.",
+        "elapsed_s": 4.223259210586548,
+        "timings": {
+          "cache_n": 78,
+          "prompt_n": 18,
+          "prompt_ms": 1090.947,
+          "prompt_per_token_ms": 60.60816666666666,
+          "prompt_per_second": 16.49942664492409,
+          "predicted_n": 12,
+          "predicted_ms": 3124.607,
+          "predicted_per_token_ms": 260.38391666666666,
+          "predicted_per_second": 3.8404829791394564
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "What version of Windows am I using right now?",
+        "response": "To determine the version of Windows you are currently using, you can follow these steps:\n\n1. Press the Windows key + R to open the Run dialog.\n2. Type `sysinfo` and press Enter.\n3. In the System Information window, look for the \"Windows\" section to see the version number.\n\nAlternatively, you can:\n- Right-click on the Start button and select \"System\" or \"System Information.\"\n- Go to the \"System\" settings in Settings > System, and click on \"About.\"\n- Look for the \"Windows\" section to find the version number.\n\nThis information",
+        "elapsed_s": 39.35814666748047,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 15,
+          "prompt_ms": 1328.412,
+          "prompt_per_token_ms": 88.5608,
+          "prompt_per_second": 11.291677581954996,
+          "predicted_n": 120,
+          "predicted_ms": 38020.813,
+          "predicted_per_token_ms": 316.8401083333334,
+          "predicted_per_second": 3.1561660714619646
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "Starting with text for the first prototype might be easier if you're not familiar with voice interfaces. You can always add voice capabilities later. But if you're confident in voice, you could start there. It depends on your familiarity and the specific needs of your project.",
+        "elapsed_s": 19.906368732452393,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 26,
+          "prompt_ms": 1886.675,
+          "prompt_per_token_ms": 72.56442307692308,
+          "prompt_per_second": 13.780857858401685,
+          "predicted_n": 54,
+          "predicted_ms": 18008.418,
+          "predicted_per_token_ms": 333.4892222222222,
+          "predicted_per_second": 2.9985976558296237
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "When a user asks for a current fact and the app does not have immediate access to such information, the model should suggest searching for the fact online or provide a list of credible sources where the user can find the information themselves.",
+        "elapsed_s": 15.298655986785889,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 32,
+          "prompt_ms": 1738.215,
+          "prompt_per_token_ms": 54.31921875,
+          "prompt_per_second": 18.409690400784715,
+          "predicted_n": 46,
+          "predicted_ms": 13552.961,
+          "predicted_per_token_ms": 294.62958695652173,
+          "predicted_per_second": 3.394092257773043
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "\"Howdy there, welcome to your digital doorstep!\"",
+        "elapsed_s": 4.246291875839233,
+        "timings": {
+          "cache_n": 41,
+          "prompt_n": 20,
+          "prompt_ms": 1164.222,
+          "prompt_per_token_ms": 58.2111,
+          "prompt_per_second": 17.17885420478225,
+          "predicted_n": 11,
+          "predicted_ms": 3074.424,
+          "predicted_per_token_ms": 279.4930909090909,
+          "predicted_per_second": 3.5779059752330844
+        }
+      }
+    ]
+  },
+  "qwen3_17b": {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "prefix": "",
+    "cold_ready_s": 10.018703937530518,
+    "rss_kb": 2583584,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "",
+        "elapsed_s": 23.363590955734253,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 71,
+          "prompt_ms": 1479.366,
+          "prompt_per_token_ms": 20.83614084507042,
+          "prompt_per_second": 47.993532364539945,
+          "predicted_n": 120,
+          "predicted_ms": 21870.532,
+          "predicted_per_token_ms": 182.25443333333334,
+          "predicted_per_second": 5.486834979597204
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "",
+        "elapsed_s": 22.32823133468628,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 25,
+          "prompt_ms": 648.936,
+          "prompt_per_token_ms": 25.957440000000002,
+          "prompt_per_second": 38.52460026874761,
+          "predicted_n": 120,
+          "predicted_ms": 21662.428,
+          "predicted_per_token_ms": 180.52023333333332,
+          "predicted_per_second": 5.539545243958803
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "",
+        "elapsed_s": 24.198254585266113,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 31,
+          "prompt_ms": 1074.802,
+          "prompt_per_token_ms": 34.671032258064514,
+          "prompt_per_second": 28.842521692367526,
+          "predicted_n": 120,
+          "predicted_ms": 23104.002,
+          "predicted_per_token_ms": 192.53335,
+          "predicted_per_second": 5.193905367563594
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "",
+        "elapsed_s": 23.637640237808228,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 27,
+          "prompt_ms": 683.083,
+          "prompt_per_token_ms": 25.29937037037037,
+          "prompt_per_second": 39.5266753820546,
+          "predicted_n": 120,
+          "predicted_ms": 22933.32,
+          "predicted_per_token_ms": 191.111,
+          "predicted_per_second": 5.232561181721617
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect to http://192.168.1.151:18080 by default. The user can let the app know which model to use by changing the model setting.",
+        "elapsed_s": 12.262561798095703,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 105,
+          "prompt_ms": 2722.121,
+          "prompt_per_token_ms": 25.924961904761904,
+          "prompt_per_second": 38.57286285216565,
+          "predicted_n": 52,
+          "predicted_ms": 9520.736,
+          "predicted_per_token_ms": 183.09107692307694,
+          "predicted_per_second": 5.4617626200327365
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "Remember this: my preferred assistant voice should be calm and brief.",
+        "response": "Certainly! I'll maintain a calm and concise tone in all responses. Let me know how I can assist you.",
+        "elapsed_s": 24.51771378517151,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 18,
+          "prompt_ms": 775.045,
+          "prompt_per_token_ms": 43.058055555555555,
+          "prompt_per_second": 23.224457934700567,
+          "predicted_n": 116,
+          "predicted_ms": 23718.945,
+          "predicted_per_token_ms": 204.47366379310344,
+          "predicted_per_second": 4.89060537894919
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "",
+        "elapsed_s": 22.612394332885742,
+        "timings": {
+          "cache_n": 57,
+          "prompt_n": 41,
+          "prompt_ms": 963.117,
+          "prompt_per_token_ms": 23.490658536585364,
+          "prompt_per_second": 42.57011349607576,
+          "predicted_n": 120,
+          "predicted_ms": 21632.403,
+          "predicted_per_token_ms": 180.27002499999998,
+          "predicted_per_second": 5.5472339342050905
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "What version of Windows am I using right now?",
+        "response": "",
+        "elapsed_s": 22.74585723876953,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 15,
+          "prompt_ms": 523.619,
+          "prompt_per_token_ms": 34.90793333333333,
+          "prompt_per_second": 28.646783252708552,
+          "predicted_n": 120,
+          "predicted_ms": 22202.817,
+          "predicted_per_token_ms": 185.023475,
+          "predicted_per_second": 5.404719590311446
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "",
+        "elapsed_s": 23.001115560531616,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 26,
+          "prompt_ms": 867.971,
+          "prompt_per_token_ms": 33.3835,
+          "prompt_per_second": 29.9549178486378,
+          "predicted_n": 120,
+          "predicted_ms": 22115.942,
+          "predicted_per_token_ms": 184.29951666666665,
+          "predicted_per_second": 5.425950203703735
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "If the app does not have the information, it should inform the user that it cannot provide the fact. The model should work together by relying on its training data and not inventing facts when it lacks knowledge.",
+        "elapsed_s": 9.075232744216919,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 32,
+          "prompt_ms": 924.42,
+          "prompt_per_token_ms": 28.888125,
+          "prompt_per_second": 34.61629995023907,
+          "predicted_n": 47,
+          "predicted_ms": 8133.635,
+          "predicted_per_token_ms": 173.05606382978723,
+          "predicted_per_second": 5.778474200034793
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "",
+        "elapsed_s": 24.049540042877197,
+        "timings": {
+          "cache_n": 39,
+          "prompt_n": 22,
+          "prompt_ms": 678.994,
+          "prompt_per_token_ms": 30.863363636363637,
+          "prompt_per_second": 32.40087541274297,
+          "predicted_n": 120,
+          "predicted_ms": 23351.511,
+          "predicted_per_token_ms": 194.595925,
+          "predicted_per_second": 5.138853755544984
+        }
+      }
+    ]
+  },
+  "qwen3_17b_no_think": {
+    "model": "Qwen3-1.7B-Q4_K_M.gguf",
+    "prefix": "/no_think\n",
+    "cold_ready_s": 5.012972354888916,
+    "rss_kb": 2486768,
+    "results": [
+      {
+        "test": "casual_chat_quality",
+        "prompt": "I'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "prompt_with_prefix": "/no_think\nI'm building a desktop AI assistant for daily use. In two short sentences, what makes a good assistant feel useful instead of annoying?",
+        "response": "A good assistant feels useful when it accurately understands your needs and provides timely, relevant help. It becomes annoying when it acts without understanding your context or delivers irrelevant information.",
+        "elapsed_s": 8.188173055648804,
+        "timings": {
+          "cache_n": 0,
+          "prompt_n": 75,
+          "prompt_ms": 1663.817,
+          "prompt_per_token_ms": 22.184226666666667,
+          "prompt_per_second": 45.0770727790376,
+          "predicted_n": 38,
+          "predicted_ms": 6512.154,
+          "predicted_per_token_ms": 171.37247368421055,
+          "predicted_per_second": 5.835242839773137
+        }
+      },
+      {
+        "test": "concise_factual_answer",
+        "prompt": "Explain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "prompt_with_prefix": "/no_think\nExplain what a local-first AI assistant is in one short paragraph for a non-technical user.",
+        "response": "A local-first AI assistant is one that operates entirely on your own device, using data and models that are stored and processed locally, rather than relying on cloud services. This means it doesn't need an internet connection to function and keeps your privacy and data secure, as it doesn't store or share your information with third parties.",
+        "elapsed_s": 12.247611284255981,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 25,
+          "prompt_ms": 615.205,
+          "prompt_per_token_ms": 24.6082,
+          "prompt_per_second": 40.636860883770446,
+          "predicted_n": 70,
+          "predicted_ms": 11613.11,
+          "predicted_per_token_ms": 165.90157142857143,
+          "predicted_per_second": 6.027670451756678
+        }
+      },
+      {
+        "test": "clarifying_uncertainty",
+        "prompt": "If you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "prompt_with_prefix": "/no_think\nIf you are not sure about a fact, what should you do instead of guessing? Answer as the assistant speaking to the user.",
+        "response": "If you are not sure about a fact, you should consult reliable sources or seek clarification rather than guessing.",
+        "elapsed_s": 5.2408483028411865,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 31,
+          "prompt_ms": 1029.696,
+          "prompt_per_token_ms": 33.215999999999994,
+          "prompt_per_second": 30.105973025048172,
+          "predicted_n": 26,
+          "predicted_ms": 4195.544,
+          "predicted_per_token_ms": 161.36707692307692,
+          "predicted_per_second": 6.197050966453934
+        }
+      },
+      {
+        "test": "instruction_following",
+        "prompt": "Give me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "prompt_with_prefix": "/no_think\nGive me exactly three bullet points for the first milestones of this assistant project. Keep each bullet under ten words.",
+        "response": "- Develop initial project plan and goals.  \n- Design and implement core functionality.  \n- Conduct first user testing and gather feedback.",
+        "elapsed_s": 6.114123344421387,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 27,
+          "prompt_ms": 669.965,
+          "prompt_per_token_ms": 24.81351851851852,
+          "prompt_per_second": 40.30061271857485,
+          "predicted_n": 31,
+          "predicted_ms": 5431.107,
+          "predicted_per_token_ms": 175.197,
+          "predicted_per_second": 5.707860294411434
+        }
+      },
+      {
+        "test": "tool_summary_grounding",
+        "prompt": "Use only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "prompt_with_prefix": "/no_think\nUse only this context and answer briefly.\n\nContext:\n- The Raspberry Pi backend is at http://192.168.1.151:18080\n- The current default model is qwen2.5-1.5b-instruct-q4_k_m.gguf\n- Gemma 3 1B is faster but may answer differently\n\nQuestion:\nWhat should the desktop app connect to by default, and what should it let the user change?",
+        "response": "The desktop app should connect to http://192.168.1.151:18080 by default. It should let the user change the model version, such as switching to Gemma 3 1B.",
+        "elapsed_s": 12.428391218185425,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 105,
+          "prompt_ms": 2823.116,
+          "prompt_per_token_ms": 26.88681904761905,
+          "prompt_per_second": 37.19294566712809,
+          "predicted_n": 57,
+          "predicted_ms": 9591.51,
+          "predicted_per_token_ms": 168.2721052631579,
+          "predicted_per_second": 5.942755624505422
+        }
+      },
+      {
+        "test": "memory_a",
+        "prompt": "Remember this: my preferred assistant voice should be calm and brief.",
+        "prompt_with_prefix": "/no_think\nRemember this: my preferred assistant voice should be calm and brief.",
+        "response": "Understood. I will respond in a calm and brief manner, as requested. Let me know if you need anything else.",
+        "elapsed_s": 5.461363077163696,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 18,
+          "prompt_ms": 604.894,
+          "prompt_per_token_ms": 33.605222222222224,
+          "prompt_per_second": 29.75727978786366,
+          "predicted_n": 30,
+          "predicted_ms": 4836.252,
+          "predicted_per_token_ms": 161.2084,
+          "predicted_per_second": 6.20315070430573
+        }
+      },
+      {
+        "test": "memory_b",
+        "prompt": "What voice style did I ask for?",
+        "prompt_with_prefix": "What voice style did I ask for?",
+        "response": "You asked for a voice style that is calm and brief.",
+        "elapsed_s": 6.2597432136535645,
+        "timings": {
+          "cache_n": 61,
+          "prompt_n": 43,
+          "prompt_ms": 1258.844,
+          "prompt_per_token_ms": 29.27544186046512,
+          "prompt_per_second": 34.15832303287778,
+          "predicted_n": 17,
+          "predicted_ms": 4991.301,
+          "predicted_per_token_ms": 293.6059411764706,
+          "predicted_per_second": 3.4059256294100475
+        }
+      },
+      {
+        "test": "hallucination_resistance",
+        "prompt": "What version of Windows am I using right now?",
+        "prompt_with_prefix": "/no_think\nWhat version of Windows am I using right now?",
+        "response": "I cannot determine the exact version of Windows you are using. Please check the following options:\n\n1. **Start menu > Settings > System > About**  \n2. **Right-click on Windows icon > Properties**  \n3. **Press Windows + R, type `systeminfo` and press Enter**  \n\nLet me know if you'd like help with anything else!",
+        "elapsed_s": 14.628547668457031,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 15,
+          "prompt_ms": 789.72,
+          "prompt_per_token_ms": 52.648,
+          "prompt_per_second": 18.994073848959125,
+          "predicted_n": 78,
+          "predicted_ms": 13785.759,
+          "predicted_per_token_ms": 176.7405,
+          "predicted_per_second": 5.658012736186669
+        }
+      },
+      {
+        "test": "voice_friendly_reply_style",
+        "prompt": "Answer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "prompt_with_prefix": "/no_think\nAnswer this like a spoken assistant reply: \"Should I start with voice or text for the first prototype?\"",
+        "response": "It depends on your goals and resources. Voice might offer better accessibility and natural interaction, while text could be simpler and more straightforward for initial development. Consider your target audience and what they prefer.",
+        "elapsed_s": 8.23462986946106,
+        "timings": {
+          "cache_n": 43,
+          "prompt_n": 26,
+          "prompt_ms": 862.518,
+          "prompt_per_token_ms": 33.17376923076923,
+          "prompt_per_second": 30.1442984378297,
+          "predicted_n": 43,
+          "predicted_ms": 7354.836,
+          "predicted_per_token_ms": 171.0426976744186,
+          "predicted_per_second": 5.846493382041421
+        }
+      },
+      {
+        "test": "search_handoff_behavior",
+        "prompt": "If a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "prompt_with_prefix": "/no_think\nIf a user asks for a current fact you do not know, how should the app and model work together? Answer in two sentences.",
+        "response": "If the app does not know the fact, it should inform the user that it cannot provide the information. The model should rely on its training data and available resources to determine whether it can answer the question or not.",
+        "elapsed_s": 8.546101331710815,
+        "timings": {
+          "cache_n": 44,
+          "prompt_n": 31,
+          "prompt_ms": 883.039,
+          "prompt_per_token_ms": 28.485129032258065,
+          "prompt_per_second": 35.10603721919417,
+          "predicted_n": 48,
+          "predicted_ms": 7644.941,
+          "predicted_per_token_ms": 159.26960416666665,
+          "predicted_per_second": 6.278661928195392
+        }
+      },
+      {
+        "test": "desktop_companion_tone",
+        "prompt": "Give me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "prompt_with_prefix": "/no_think\nGive me a greeting line for a desktop assistant avatar that feels warm but not cheesy.",
+        "response": "Hello, welcome to your personalized assistant. I'm here to help!",
+        "elapsed_s": 3.781552791595459,
+        "timings": {
+          "cache_n": 45,
+          "prompt_n": 20,
+          "prompt_ms": 825.355,
+          "prompt_per_token_ms": 41.26775,
+          "prompt_per_second": 24.231997140624337,
+          "predicted_n": 19,
+          "predicted_ms": 2938.863,
+          "predicted_per_token_ms": 154.677,
+          "predicted_per_second": 6.465085306800623
+        }
+      }
+    ]
+  }
+}
