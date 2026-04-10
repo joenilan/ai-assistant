@@ -2,19 +2,20 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use reqwest::Client;
 use rodio::{Decoder, OutputStream, Sink};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use tauri::{
-    Emitter, Manager,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -32,6 +33,13 @@ struct RuntimeConfig {
     llm_model: String,
     llm_timeout_ms: u64,
     assistant_system_prompt: String,
+    assistant_personality_preset: String,
+    assistant_personality_custom: String,
+    stt_backend: String,
+    whisper_cpp_path: String,
+    whisper_model_path: String,
+    stt_language: String,
+    stt_threads: u32,
     tts_backend: String,
     tts_voice: String,
     tts_output_device: String,
@@ -99,6 +107,7 @@ struct ChatRequest {
     tool_mode: Option<String>,
     file_path: Option<String>,
     current_date: Option<String>,
+    trusted_context: Option<String>,
     conversation_id: Option<i64>,
 }
 
@@ -177,6 +186,35 @@ struct TtsStateEvent {
     output_device: Option<String>,
     message: String,
     detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SttStatus {
+    available: bool,
+    ready: bool,
+    backend: String,
+    configured_binary_path: String,
+    configured_model_path: String,
+    language: String,
+    threads: u32,
+    message: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscribeAudioRequest {
+    audio_bytes: Vec<u8>,
+    language: Option<String>,
+    prompt: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TranscribeAudioResponse {
+    text: String,
+    backend: String,
+    language: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -280,7 +318,7 @@ struct SearxngSearchResult {
 struct ToolEvidence {
     mode: String,
     detail: String,
-    system_prompt_suffix: String,
+    trusted_context: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -365,6 +403,13 @@ impl SettingsState {
                 .unwrap_or(default)
         };
 
+        let get_u32 = |db_key: &str, env_key: &str, default: u32| -> u32 {
+            db.get(db_key)
+                .and_then(|v| v.parse::<u32>().ok())
+                .or_else(|| env::var(env_key).ok().and_then(|v| v.parse::<u32>().ok()))
+                .unwrap_or(default)
+        };
+
         let backend_type = get("backend_type", "BACKEND_TYPE", "llamacpp");
         let llm_base_url = normalize_base_url(get(
             "llm_base_url",
@@ -406,8 +451,8 @@ impl SettingsState {
             "SEARXNG_URL",
             "http://192.168.1.151:8888",
         ));
-        let tts_backend =
-            normalize_tts_backend(get("tts_backend", "TTS_BACKEND", "winrt"));
+        let stt_backend = normalize_stt_backend(get("stt_backend", "STT_BACKEND", "whispercpp"));
+        let tts_backend = normalize_tts_backend(get("tts_backend", "TTS_BACKEND", "winrt"));
 
         RuntimeConfig {
             backend_type,
@@ -426,6 +471,21 @@ impl SettingsState {
                 "ASSISTANT_SYSTEM_PROMPT",
                 "You are a concise local desktop assistant. Answer clearly, stay grounded in available context, and do not invent facts when the app can look them up instead.",
             ),
+            assistant_personality_preset: get(
+                "assistant_personality_preset",
+                "ASSISTANT_PERSONALITY_PRESET",
+                "balanced",
+            ),
+            assistant_personality_custom: get(
+                "assistant_personality_custom",
+                "ASSISTANT_PERSONALITY_CUSTOM",
+                "",
+            ),
+            stt_backend,
+            whisper_cpp_path: get("whisper_cpp_path", "WHISPER_CPP_PATH", ""),
+            whisper_model_path: get("whisper_model_path", "WHISPER_MODEL_PATH", ""),
+            stt_language: get("stt_language", "STT_LANGUAGE", "en"),
+            stt_threads: get_u32("stt_threads", "STT_THREADS", 4).clamp(1, 16),
             tts_backend,
             tts_voice: get("tts_voice", "TTS_VOICE", "Microsoft Zira Desktop"),
             tts_output_device: get("tts_output_device", "TTS_OUTPUT_DEVICE", ""),
@@ -447,6 +507,13 @@ fn normalize_searxng_url(value: String) -> String {
         trimmed
     } else {
         format!("{trimmed}/search")
+    }
+}
+
+fn normalize_stt_backend(value: String) -> String {
+    match value.trim().to_lowercase().as_str() {
+        "" | "whisper.cpp" | "whispercpp" => "whispercpp".to_string(),
+        other => other.to_string(),
     }
 }
 
@@ -660,7 +727,9 @@ fn resolve_output_device_selection(
         .and_then(|requested| {
             devices
                 .iter()
-                .find(|device| device.id == requested || device.name.eq_ignore_ascii_case(requested))
+                .find(|device| {
+                    device.id == requested || device.name.eq_ignore_ascii_case(requested)
+                })
                 .cloned()
         })
         .or_else(|| {
@@ -857,7 +926,7 @@ fn synthesize_text_to_wav(
     pitch: f64,
 ) -> Result<Vec<u8>, String> {
     use windows::{
-        core::{HSTRING, Interface},
+        core::{Interface, HSTRING},
         Media::SpeechSynthesis::SpeechSynthesizer,
         Storage::Streams::{DataReader, IInputStream},
         Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED},
@@ -884,7 +953,9 @@ fn synthesize_text_to_wav(
         for index in 0..count {
             if let Ok(voice) = voices.GetAt(index) {
                 if voice.Id().ok().as_ref() == Some(&target) {
-                    synthesizer.SetVoice(&voice).map_err(|error| error.to_string())?;
+                    synthesizer
+                        .SetVoice(&voice)
+                        .map_err(|error| error.to_string())?;
                     break;
                 }
             }
@@ -1079,7 +1150,6 @@ async fn fetch_web_evidence(
     client: &Client,
     config: &RuntimeConfig,
     prompt: &str,
-    current_date: Option<&str>,
 ) -> Result<ToolEvidence, String> {
     let response = client
         .get(&config.searxng_url)
@@ -1148,15 +1218,9 @@ async fn fetch_web_evidence(
     Ok(ToolEvidence {
         mode: "web".to_string(),
         detail: format!("{} web result(s)", selected_results.len()),
-        system_prompt_suffix: {
-            let date_line = current_date
-                .filter(|d| !d.trim().is_empty())
-                .map(|d| format!("\nCurrent date (from user's device, authoritative): {d}."))
-                .unwrap_or_default();
-            format!(
-                "\n\nThe application performed a web search. Answer from the evidence below. If search results conflict with the current date, trust the date.{date_line}\n\nWeb search evidence for query `{prompt}`:\n{context}"
-            )
-        },
+        trusted_context: format!(
+            "Web search evidence for query `{prompt}`:\n{context}\n\nUse this evidence for current facts instead of model memory. If the evidence is incomplete, say so plainly."
+        ),
     })
 }
 
@@ -1173,8 +1237,12 @@ fn read_file_evidence(file_path: &str) -> Result<ToolEvidence, String> {
     let canonical_path = fs::canonicalize(&resolved_path)
         .map_err(|error| format!("Could not open file `{}`: {error}", resolved_path.display()))?;
 
-    let metadata = fs::metadata(&canonical_path)
-        .map_err(|error| format!("Could not read metadata for `{}`: {error}", canonical_path.display()))?;
+    let metadata = fs::metadata(&canonical_path).map_err(|error| {
+        format!(
+            "Could not read metadata for `{}`: {error}",
+            canonical_path.display()
+        )
+    })?;
 
     if !metadata.is_file() {
         return Err(format!("`{}` is not a file.", canonical_path.display()));
@@ -1206,8 +1274,8 @@ fn read_file_evidence(file_path: &str) -> Result<ToolEvidence, String> {
     Ok(ToolEvidence {
         mode: "file".to_string(),
         detail: canonical_path.display().to_string(),
-        system_prompt_suffix: format!(
-            "\n\nThe application read a local file for the user's request. Answer from the file excerpt below when it is relevant. If the excerpt does not contain the answer, say so directly.\n\nFile path: {}\n{}\n\nFile excerpt:\n{}",
+        trusted_context: format!(
+            "Local file evidence:\nFile path: {}\n{}\n\nFile excerpt:\n{}\n\nAnswer from this excerpt when it is relevant. If it does not contain the answer, say so directly.",
             canonical_path.display(),
             truncation_note,
             excerpt
@@ -1215,7 +1283,193 @@ fn read_file_evidence(file_path: &str) -> Result<ToolEvidence, String> {
     })
 }
 
-async fn fetch_models_response(client: &Client, config: &RuntimeConfig) -> Result<ModelsResponse, String> {
+fn resolve_whisper_binary_path(config: &RuntimeConfig) -> Option<PathBuf> {
+    let configured = config.whisper_cpp_path.trim();
+
+    if !configured.is_empty() {
+        let configured_path = PathBuf::from(configured);
+
+        if configured_path.is_dir() {
+            let candidates = if cfg!(windows) {
+                ["whisper-cli.exe", "main.exe"]
+            } else {
+                ["whisper-cli", "main"]
+            };
+
+            for candidate in candidates {
+                let candidate_path = configured_path.join(candidate);
+                if candidate_path.is_file() {
+                    return Some(candidate_path);
+                }
+            }
+
+            return None;
+        }
+
+        if configured_path.is_file() {
+            return Some(configured_path);
+        }
+    }
+
+    let candidates: &[&str] = if cfg!(windows) {
+        &["whisper-cli.exe", "whisper-cli"]
+    } else {
+        &["whisper-cli"]
+    };
+
+    let path_entries = env::var_os("PATH")?;
+
+    for entry in env::split_paths(&path_entries) {
+        for candidate in candidates {
+            let candidate_path = entry.join(candidate);
+            if candidate_path.is_file() {
+                return Some(candidate_path);
+            }
+        }
+    }
+
+    None
+}
+
+fn resolve_whisper_model_path(config: &RuntimeConfig) -> Option<PathBuf> {
+    let configured = config.whisper_model_path.trim();
+
+    if configured.is_empty() {
+        return None;
+    }
+
+    let path = PathBuf::from(configured);
+    if path.is_file() {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+fn transcription_workspace_dir() -> Result<PathBuf, String> {
+    let directory = env::temp_dir().join("ai-assistant-stt");
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("Could not create STT temp directory: {error}"))?;
+    Ok(directory)
+}
+
+fn next_transcription_id() -> String {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or(0);
+
+    format!("stt-{millis}")
+}
+
+fn compact_transcription_text(value: &str) -> String {
+    value
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn transcribe_with_whisper_cpp(
+    config: &RuntimeConfig,
+    request: &TranscribeAudioRequest,
+) -> Result<TranscribeAudioResponse, String> {
+    let binary_path = resolve_whisper_binary_path(config).ok_or_else(|| {
+        "whisper.cpp executable was not found. Set WHISPER_CPP_PATH to whisper-cli.exe or its directory.".to_string()
+    })?;
+    let model_path = resolve_whisper_model_path(config).ok_or_else(|| {
+        "whisper.cpp model was not found. Set WHISPER_MODEL_PATH to a local ggml Whisper model."
+            .to_string()
+    })?;
+
+    if request.audio_bytes.is_empty() {
+        return Err("No recorded audio was provided for transcription.".to_string());
+    }
+
+    let language = request
+        .language
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(config.stt_language.as_str())
+        .to_string();
+    let workspace = transcription_workspace_dir()?;
+    let job_id = next_transcription_id();
+    let input_path = workspace.join(format!("{job_id}.wav"));
+    let output_base = workspace.join(format!("{job_id}-transcript"));
+    let output_txt_path = workspace.join(format!("{job_id}-transcript.txt"));
+
+    fs::write(&input_path, &request.audio_bytes)
+        .map_err(|error| format!("Could not write the recorded audio file: {error}"))?;
+
+    let mut command = Command::new(&binary_path);
+    command
+        .arg("-m")
+        .arg(&model_path)
+        .arg("-f")
+        .arg(&input_path)
+        .arg("-l")
+        .arg(language.as_str())
+        .arg("-t")
+        .arg(config.stt_threads.to_string())
+        .arg("-nt")
+        .arg("-np")
+        .arg("-otxt")
+        .arg("-of")
+        .arg(&output_base);
+
+    if let Some(prompt) = request
+        .prompt
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        command.arg("--prompt").arg(prompt);
+    }
+
+    let output = command
+        .output()
+        .map_err(|error| format!("Could not launch whisper.cpp: {error}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    if !output.status.success() {
+        let _ = fs::remove_file(&input_path);
+        let _ = fs::remove_file(&output_txt_path);
+        let detail = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            "whisper.cpp exited with a non-zero status.".to_string()
+        };
+
+        return Err(format!("whisper.cpp transcription failed. {detail}"));
+    }
+
+    let transcript_source = fs::read_to_string(&output_txt_path).unwrap_or(stdout);
+    let transcript = compact_transcription_text(&transcript_source);
+
+    let _ = fs::remove_file(&input_path);
+    let _ = fs::remove_file(&output_txt_path);
+
+    if transcript.is_empty() {
+        return Err("whisper.cpp did not return any transcript. Try speaking a little longer or increasing mic input.".to_string());
+    }
+
+    Ok(TranscribeAudioResponse {
+        text: transcript,
+        backend: config.stt_backend.clone(),
+        language,
+    })
+}
+
+async fn fetch_models_response(
+    client: &Client,
+    config: &RuntimeConfig,
+) -> Result<ModelsResponse, String> {
     let response = client
         .get(&config.llm_models_endpoint)
         .send()
@@ -1314,6 +1568,151 @@ fn extract_text_content(value: serde_json::Value) -> Option<String> {
     }
 }
 
+fn load_conversation_summary(
+    settings: &tauri::State<'_, SettingsState>,
+    conversation_id: Option<i64>,
+) -> Result<Option<String>, String> {
+    if let Some(conv_id) = conversation_id {
+        let conn = settings
+            .conn
+            .lock()
+            .map_err(|_| "Could not acquire DB lock.".to_string())?;
+
+        Ok(conn
+            .query_row(
+                "SELECT summary FROM conversations WHERE id = ?1",
+                params![conv_id],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .ok()
+            .flatten()
+            .filter(|summary| !summary.trim().is_empty()))
+    } else {
+        Ok(None)
+    }
+}
+
+fn build_fallback_trusted_context(
+    prompt: &str,
+    resolved_tool_mode: &str,
+    current_date: Option<&str>,
+    trusted_context: Option<&str>,
+) -> Option<String> {
+    if trusted_context.is_some_and(|value| !value.trim().is_empty()) {
+        return trusted_context.map(|value| value.trim().to_string());
+    }
+
+    if is_pure_date_query(prompt) {
+        return None;
+    }
+
+    if (resolved_tool_mode == "web" || should_use_web_search(prompt))
+        && current_date.is_some_and(|value| !value.trim().is_empty())
+    {
+        return current_date.map(|value| {
+            format!(
+                "Current local date/time from the user's device (authoritative): {}.",
+                value.trim()
+            )
+        });
+    }
+
+    None
+}
+
+fn build_personality_guidance(preset: &str, custom: &str) -> Option<String> {
+    let normalized_preset = preset.trim().to_lowercase();
+    let preset_guidance = match normalized_preset.as_str() {
+        "" | "balanced" => Some(
+            "Personality style: calm, clear, helpful, and concise. Avoid sounding robotic or overly theatrical."
+                .to_string(),
+        ),
+        "calm" => Some(
+            "Personality style: calm, steady, and reassuring. Keep replies brief, grounded, and low-drama."
+                .to_string(),
+        ),
+        "direct" => Some(
+            "Personality style: direct, efficient, and practical. Prefer short answers and concrete next steps."
+                .to_string(),
+        ),
+        "playful" => Some(
+            "Personality style: lightly playful and warm without being cheesy. Stay useful first and keep jokes restrained."
+                .to_string(),
+        ),
+        "custom" => None,
+        _ => Some(format!(
+            "Personality style: {}. Keep it useful, concise, and grounded.",
+            preset.trim()
+        )),
+    };
+    let custom_guidance = custom.trim();
+
+    match (preset_guidance, custom_guidance.is_empty()) {
+        (Some(preset_text), true) => Some(preset_text),
+        (Some(preset_text), false) => Some(format!(
+            "{preset_text}\nAdditional personality guidance:\n{custom_guidance}"
+        )),
+        (None, false) => Some(format!("Custom personality guidance:\n{custom_guidance}")),
+        (None, true) => None,
+    }
+}
+
+fn build_system_prompt_with_context(
+    base_system_prompt: &str,
+    personality_guidance: Option<&str>,
+    conversation_summary: Option<&str>,
+    trusted_context_blocks: &[String],
+) -> String {
+    let mut sections = Vec::new();
+
+    if !base_system_prompt.trim().is_empty() {
+        sections.push(base_system_prompt.trim().to_string());
+    }
+
+    if let Some(personality) = personality_guidance.filter(|value| !value.trim().is_empty()) {
+        sections.push(personality.trim().to_string());
+    }
+
+    if !trusted_context_blocks.is_empty() {
+        sections.push(format!(
+            "Trusted context:\n{}",
+            trusted_context_blocks.join("\n\n")
+        ));
+    }
+
+    if let Some(summary) = conversation_summary.filter(|value| !value.trim().is_empty()) {
+        sections.push(format!("Conversation summary:\n{}", summary.trim()));
+    }
+
+    sections.join("\n\n")
+}
+
+fn build_upstream_messages(
+    base_system_prompt: &str,
+    personality_guidance: Option<&str>,
+    conversation_summary: Option<&str>,
+    trusted_context_blocks: &[String],
+    recent_messages: Vec<ChatMessage>,
+) -> Vec<ChatMessage> {
+    let mut messages = Vec::new();
+    let system_prompt = build_system_prompt_with_context(
+        base_system_prompt,
+        personality_guidance,
+        conversation_summary,
+        trusted_context_blocks,
+    );
+
+    if !system_prompt.trim().is_empty() {
+        messages.push(ChatMessage {
+            role: "system".to_string(),
+            content: system_prompt,
+        });
+    }
+
+    messages.extend(recent_messages);
+    messages
+}
+
 #[tauri::command]
 fn get_runtime_config(settings: tauri::State<'_, SettingsState>) -> RuntimeConfig {
     settings.build_config()
@@ -1345,7 +1744,9 @@ async fn list_models(settings: tauri::State<'_, SettingsState>) -> Result<Vec<St
 }
 
 #[tauri::command]
-async fn get_control_state(settings: tauri::State<'_, SettingsState>) -> Result<ControlState, String> {
+async fn get_control_state(
+    settings: tauri::State<'_, SettingsState>,
+) -> Result<ControlState, String> {
     let config = settings.build_config();
     let client = build_http_client(config.llm_timeout_ms)?;
     let response = fetch_control_state_response(&client, &config).await?;
@@ -1427,6 +1828,56 @@ fn get_tts_status(
 }
 
 #[tauri::command]
+fn get_stt_status(settings: tauri::State<'_, SettingsState>) -> Result<SttStatus, String> {
+    let config = settings.build_config();
+    let binary_path = resolve_whisper_binary_path(&config);
+    let model_path = resolve_whisper_model_path(&config);
+    let ready = config.stt_backend == "whispercpp" && binary_path.is_some() && model_path.is_some();
+    let message = if config.stt_backend != "whispercpp" {
+        format!(
+            "STT backend `{}` is not supported by this build.",
+            config.stt_backend
+        )
+    } else if binary_path.is_none() {
+        "Set WHISPER_CPP_PATH to whisper-cli.exe or its directory.".to_string()
+    } else if model_path.is_none() {
+        "Set WHISPER_MODEL_PATH to a local whisper.cpp model file.".to_string()
+    } else {
+        "whisper.cpp is ready for local transcription.".to_string()
+    };
+
+    Ok(SttStatus {
+        available: config.stt_backend == "whispercpp",
+        ready,
+        backend: config.stt_backend,
+        configured_binary_path: config.whisper_cpp_path,
+        configured_model_path: config.whisper_model_path,
+        language: config.stt_language,
+        threads: config.stt_threads,
+        message,
+    })
+}
+
+#[tauri::command]
+async fn transcribe_audio(
+    settings: tauri::State<'_, SettingsState>,
+    request: TranscribeAudioRequest,
+) -> Result<TranscribeAudioResponse, String> {
+    let config = settings.build_config();
+
+    if config.stt_backend != "whispercpp" {
+        return Err(format!(
+            "STT backend `{}` is not supported by this build.",
+            config.stt_backend
+        ));
+    }
+
+    tauri::async_runtime::spawn_blocking(move || transcribe_with_whisper_cpp(&config, &request))
+        .await
+        .map_err(|error| format!("Transcription task failed: {error}"))?
+}
+
+#[tauri::command]
 async fn speak_text(
     app: tauri::AppHandle,
     audio: tauri::State<'_, AudioState>,
@@ -1471,14 +1922,22 @@ async fn speak_text(
     let pitch = normalize_tts_pitch(request.pitch.unwrap_or(config.tts_pitch));
     let voice_id = selected_voice.id.clone();
     let voice_name = selected_voice.name.clone();
-    let output_device_id = selected_output_device.as_ref().map(|device| device.id.clone());
+    let output_device_id = selected_output_device
+        .as_ref()
+        .map(|device| device.id.clone());
     let output_device_name = selected_output_device
         .as_ref()
         .map(|device| device.name.clone())
         .or_else(default_output_device_name);
     let text_for_synthesis = text.clone();
     let wav = tauri::async_runtime::spawn_blocking(move || {
-        synthesize_text_to_wav(&text_for_synthesis, Some(voice_id.as_str()), rate, volume, pitch)
+        synthesize_text_to_wav(
+            &text_for_synthesis,
+            Some(voice_id.as_str()),
+            rate,
+            volume,
+            pitch,
+        )
     })
     .await
     .map_err(|error| format!("Speech synthesis task failed: {error}"))??;
@@ -1599,7 +2058,13 @@ async fn enqueue_tts(
 
     let text_for_synthesis = text.clone();
     let wav = tauri::async_runtime::spawn_blocking(move || {
-        synthesize_text_to_wav(&text_for_synthesis, Some(voice_id.as_str()), rate, volume, pitch)
+        synthesize_text_to_wav(
+            &text_for_synthesis,
+            Some(voice_id.as_str()),
+            rate,
+            volume,
+            pitch,
+        )
     })
     .await
     .map_err(|error| format!("Enqueue synthesis task failed: {error}"))??;
@@ -1619,20 +2084,46 @@ async fn chat_completion(
 ) -> Result<ChatResponse, String> {
     let config = settings.build_config();
     let client = build_http_client(config.llm_timeout_ms)?;
-
-    let mut messages = Vec::new();
+    let raw_prompt = request.prompt.clone().unwrap_or_else(|| {
+        request
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == "user")
+            .map(|message| message.content.clone())
+            .unwrap_or_default()
+    });
     let system_prompt = request
         .system_prompt
         .unwrap_or_else(|| config.assistant_system_prompt.clone());
+    let resolved_tool_mode = resolve_tool_mode(
+        request.tool_mode.as_deref(),
+        &raw_prompt,
+        request.file_path.as_deref(),
+    )?;
+    let conversation_summary = load_conversation_summary(&settings, request.conversation_id)?;
+    let personality_guidance = build_personality_guidance(
+        &config.assistant_personality_preset,
+        &config.assistant_personality_custom,
+    );
+    let mut trusted_context_blocks = Vec::new();
 
-    if !system_prompt.trim().is_empty() {
-        messages.push(ChatMessage {
-            role: "system".to_string(),
-            content: system_prompt,
-        });
+    if let Some(trusted_context) = build_fallback_trusted_context(
+        &raw_prompt,
+        resolved_tool_mode.as_str(),
+        request.current_date.as_deref(),
+        request.trusted_context.as_deref(),
+    ) {
+        trusted_context_blocks.push(trusted_context);
     }
 
-    messages.extend(request.messages);
+    let messages = build_upstream_messages(
+        &system_prompt,
+        personality_guidance.as_deref(),
+        conversation_summary.as_deref(),
+        &trusted_context_blocks,
+        request.messages,
+    );
 
     let resolved_model = if let Some(model) = request.model {
         model
@@ -1706,32 +2197,16 @@ async fn chat_completion_stream(
     request: ChatRequest,
 ) -> Result<ChatResponse, String> {
     let config = settings.build_config();
-
-    // Read the conversation summary from the DB before any async work.
-    // The MutexGuard is dropped at the end of this block — never held across an await.
-    let conversation_summary: Option<String> = if let Some(conv_id) = request.conversation_id {
-        let conn = settings
-            .conn
-            .lock()
-            .map_err(|_| "Could not acquire DB lock.".to_string())?;
-        conn.query_row(
-            "SELECT summary FROM conversations WHERE id = ?1",
-            params![conv_id],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .ok()
-        .flatten()
-        .filter(|s| !s.trim().is_empty())
-    } else {
-        None
-    };
-
+    let conversation_summary = load_conversation_summary(&settings, request.conversation_id)?;
     let client = build_http_client(config.llm_timeout_ms)?;
     let request_id = request
         .request_id
         .clone()
         .unwrap_or_else(|| "chat-stream".to_string());
-    let requested_tool_mode = request.tool_mode.clone().unwrap_or_else(|| "auto".to_string());
+    let requested_tool_mode = request
+        .tool_mode
+        .clone()
+        .unwrap_or_else(|| "auto".to_string());
     let raw_prompt = request.prompt.clone().unwrap_or_else(|| {
         request
             .messages
@@ -1741,17 +2216,10 @@ async fn chat_completion_stream(
             .map(|message| message.content.clone())
             .unwrap_or_default()
     });
-    let mut system_prompt = request
+    let system_prompt = request
         .system_prompt
         .clone()
         .unwrap_or_else(|| config.assistant_system_prompt.clone());
-
-    // Prepend the rolling summary so the model has compressed prior context.
-    if let Some(ref summary) = conversation_summary {
-        system_prompt = format!(
-            "Earlier in this conversation: {summary}\n\n{system_prompt}"
-        );
-    }
 
     let resolved_tool_mode = resolve_tool_mode(
         Some(requested_tool_mode.as_str()),
@@ -1759,6 +2227,20 @@ async fn chat_completion_stream(
         request.file_path.as_deref(),
     )?;
     let mut tool_evidence: Option<ToolEvidence> = None;
+    let personality_guidance = build_personality_guidance(
+        &config.assistant_personality_preset,
+        &config.assistant_personality_custom,
+    );
+    let mut trusted_context_blocks = Vec::new();
+
+    if let Some(trusted_context) = build_fallback_trusted_context(
+        &raw_prompt,
+        resolved_tool_mode.as_str(),
+        request.current_date.as_deref(),
+        request.trusted_context.as_deref(),
+    ) {
+        trusted_context_blocks.push(trusted_context);
+    }
 
     match resolved_tool_mode.as_str() {
         "web" => {
@@ -1770,8 +2252,8 @@ async fn chat_completion_stream(
                     ToolEvidence {
                         mode: "web".to_string(),
                         detail: "Device clock".to_string(),
-                        system_prompt_suffix: format!(
-                            "\n\nThe user's device reports the current date as: {date}. Answer directly and concisely from this without speculation."
+                        trusted_context: format!(
+                            "Current local date/time from the user's device (authoritative): {date}. Answer date and time questions directly from this without speculation."
                         ),
                     }
                 })
@@ -1788,44 +2270,43 @@ async fn chat_completion_stream(
                     "success",
                     Some(evidence.detail.clone()),
                 )?;
-                system_prompt.push_str(&evidence.system_prompt_suffix);
+                trusted_context_blocks.push(evidence.trusted_context.clone());
                 tool_evidence = Some(evidence);
             } else {
+                emit_progress(
+                    &app,
+                    &request_id,
+                    "search",
+                    "Searching the web",
+                    "search",
+                    Some(config.searxng_url.clone()),
+                )?;
 
-            emit_progress(
-                &app,
-                &request_id,
-                "search",
-                "Searching the web",
-                "search",
-                Some(config.searxng_url.clone()),
-            )?;
-
-            match fetch_web_evidence(&client, &config, &raw_prompt, request.current_date.as_deref()).await {
-                Ok(evidence) => {
-                    emit_progress(
-                        &app,
-                        &request_id,
-                        "search-ready",
-                        "Grounded with web results",
-                        "search",
-                        Some(evidence.detail.clone()),
-                    )?;
-                    system_prompt.push_str(&evidence.system_prompt_suffix);
-                    tool_evidence = Some(evidence);
+                match fetch_web_evidence(&client, &config, &raw_prompt).await {
+                    Ok(evidence) => {
+                        emit_progress(
+                            &app,
+                            &request_id,
+                            "search-ready",
+                            "Grounded with web results",
+                            "search",
+                            Some(evidence.detail.clone()),
+                        )?;
+                        trusted_context_blocks.push(evidence.trusted_context.clone());
+                        tool_evidence = Some(evidence);
+                    }
+                    Err(error) if requested_tool_mode == "auto" => {
+                        emit_progress(
+                            &app,
+                            &request_id,
+                            "search-skipped",
+                            "Web search unavailable, continuing without it",
+                            "warning",
+                            Some(error),
+                        )?;
+                    }
+                    Err(error) => return Err(error),
                 }
-                Err(error) if requested_tool_mode == "auto" => {
-                    emit_progress(
-                        &app,
-                        &request_id,
-                        "search-skipped",
-                        "Web search unavailable, continuing without it",
-                        "warning",
-                        Some(error),
-                    )?;
-                }
-                Err(error) => return Err(error),
-            }
             } // else (not a pure date query)
         }
         "file" => {
@@ -1853,22 +2334,18 @@ async fn chat_completion_stream(
                 "file",
                 Some(evidence.detail.clone()),
             )?;
-            system_prompt.push_str(&evidence.system_prompt_suffix);
+            trusted_context_blocks.push(evidence.trusted_context.clone());
             tool_evidence = Some(evidence);
         }
         _ => {}
     }
-
-    let mut messages = Vec::new();
-
-    if !system_prompt.trim().is_empty() {
-        messages.push(ChatMessage {
-            role: "system".to_string(),
-            content: system_prompt,
-        });
-    }
-
-    messages.extend(request.messages.clone());
+    let messages = build_upstream_messages(
+        &system_prompt,
+        personality_guidance.as_deref(),
+        conversation_summary.as_deref(),
+        &trusted_context_blocks,
+        request.messages.clone(),
+    );
 
     let resolved_model = if let Some(model) = request.model.clone() {
         model
@@ -1929,7 +2406,9 @@ async fn chat_completion_stream(
         stream_buffer.push_str(&String::from_utf8_lossy(&chunk));
 
         while let Some(newline_index) = stream_buffer.find('\n') {
-            let line = stream_buffer[..newline_index].trim_end_matches('\r').to_string();
+            let line = stream_buffer[..newline_index]
+                .trim_end_matches('\r')
+                .to_string();
             stream_buffer = stream_buffer[newline_index + 1..].to_string();
 
             if !line.starts_with("data: ") {
@@ -1996,14 +2475,18 @@ async fn chat_completion_stream(
         "done",
         "Reply ready",
         "success",
-        tool_evidence.as_ref().map(|evidence| evidence.detail.clone()),
+        tool_evidence
+            .as_ref()
+            .map(|evidence| evidence.detail.clone()),
     )?;
 
     Ok(ChatResponse {
         content: full_content,
         model: streamed_model.unwrap_or_else(|| upstream_request.model.to_string()),
         tool_mode: tool_evidence.as_ref().map(|evidence| evidence.mode.clone()),
-        tool_detail: tool_evidence.as_ref().map(|evidence| evidence.detail.clone()),
+        tool_detail: tool_evidence
+            .as_ref()
+            .map(|evidence| evidence.detail.clone()),
     })
 }
 
@@ -2225,7 +2708,9 @@ async fn summarize_conversation(
     if !response.status().is_success() {
         let status = response.status().as_u16();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!("Summarization endpoint returned HTTP {status}. {body}"));
+        return Err(format!(
+            "Summarization endpoint returned HTTP {status}. {body}"
+        ));
     }
 
     let completion = response
@@ -2381,9 +2866,11 @@ pub fn run() {
             get_control_state,
             switch_model,
             get_tts_status,
+            get_stt_status,
             speak_text,
             stop_tts,
             enqueue_tts,
+            transcribe_audio,
             chat_completion,
             chat_completion_stream,
             get_settings,

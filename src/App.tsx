@@ -5,6 +5,7 @@ import {
   Bot,
   FileText,
   Globe,
+  Mic,
   Moon,
   RefreshCw,
   RotateCcw,
@@ -42,26 +43,26 @@ import {
   getControlState,
   getConversation,
   getRuntimeConfig,
+  getSttStatus,
   getTtsStatus,
   listConversations,
   speakText,
   stopTts,
   summarizeConversation,
   switchModel,
+  transcribeAudio,
   type BackendStatus,
   type ChatMessage,
   type ChatStreamEvent,
   type ControlState,
   type PersistedMessage,
   type RuntimeConfig,
+  type SttStatus,
   type TtsStateEvent,
   type TtsStatus,
 } from "@/lib/assistant";
-import {
-  applyClientPromptPrefix,
-  formatCurrentDateContext,
-  normalizeConversation,
-} from "@/lib/conversation-context";
+import { buildChatCompletionRequest } from "@/lib/assistant-session";
+import { startAudioCapture, type ActiveAudioCapture } from "@/lib/audio-capture";
 import {
   getEffectiveProfileTier,
   getActiveProfile,
@@ -95,6 +96,7 @@ const themeStorageKey = "ai-assistant-theme";
 const autoSpeakStorageKey = "ai-assistant-auto-speak";
 const voiceStorageKey = "ai-assistant-voice";
 const audioDeviceStorageKey = "ai-assistant-audio-device";
+const advancedModelsStorageKey = "ai-assistant-show-advanced-models";
 
 type ActivityTone =
   | AssistantProgressEvent["tone"]
@@ -108,6 +110,12 @@ interface AssistantActivity {
 
 interface VoiceActivity {
   state: "idle" | "speaking" | "error";
+  message: string;
+  detail?: string | null;
+}
+
+interface VoiceInputActivity {
+  state: "idle" | "recording" | "transcribing" | "error";
   message: string;
   detail?: string | null;
 }
@@ -210,6 +218,19 @@ function getVoiceStateClasses(state: VoiceActivity["state"]) {
   }
 }
 
+function getVoiceInputStateClasses(state: VoiceInputActivity["state"]) {
+  switch (state) {
+    case "recording":
+      return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300";
+    case "transcribing":
+      return "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300";
+    case "error":
+      return "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300";
+    default:
+      return "border-border bg-muted/40 text-muted-foreground";
+  }
+}
+
 function extractSentences(text: string): { sentences: string[]; remaining: string } {
   const sentences: string[] = [];
   let start = 0;
@@ -281,6 +302,7 @@ export default function App() {
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [controlState, setControlState] = useState<ControlState | null>(null);
+  const [sttStatus, setSttStatus] = useState<SttStatus | null>(null);
   const [messages, setMessages] = useState(initialTranscript);
   const [draft, setDraft] = useState("");
   const [toolMode, setToolMode] = useState<AssistantToolMode>("auto");
@@ -307,9 +329,20 @@ export default function App() {
     const stored = window.localStorage.getItem(autoSpeakStorageKey);
     return stored === null ? true : stored === "true";
   });
+  const [showAdvancedModels, setShowAdvancedModels] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem(advancedModelsStorageKey) === "true";
+  });
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity>({
     state: "idle",
     message: "Voice output idle.",
+  });
+  const [voiceInputActivity, setVoiceInputActivity] = useState<VoiceInputActivity>({
+    state: "idle",
+    message: "Voice input idle.",
   });
   const [activity, setActivity] = useState<AssistantActivity>({
     tone: "idle",
@@ -322,18 +355,30 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   const [switchingAlias, setSwitchingAlias] = useState<string | null>(null);
   const [isRefreshingTts, setIsRefreshingTts] = useState(false);
+  const [isRefreshingStt, setIsRefreshingStt] = useState(false);
   const [isSpeakingRequest, setIsSpeakingRequest] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
+  const activeRecordingRef = useRef<ActiveAudioCapture | null>(null);
   // Counts completed user+assistant exchanges for the current conversation.
   // Summarization fires every SUMMARIZE_EVERY exchanges (background, non-blocking).
   const exchangeCountRef = useRef(0);
   const activeProfile = getActiveProfile(controlState);
   const sortedModelProfiles = sortModelProfiles(controlState?.models || [], controlState);
+  const visibleModelProfiles = sortedModelProfiles.filter((profile) => {
+    const effectiveTier = getEffectiveProfileTier(profile, controlState);
+    const isAdvanced = effectiveTier === "quality_slow" || effectiveTier === "legacy";
+    const isActive = profile.active || profile.alias === controlState?.currentAlias;
+
+    return showAdvancedModels || !isAdvanced || isActive;
+  });
 
   const backendModel = getBackendModel(controlState, backendStatus, runtimeConfig);
   const sendDisabled =
     !draft.trim() ||
     isSending ||
+    isTranscribingVoice ||
     isBootstrapping ||
     !!switchingAlias ||
     controlState?.ready === false ||
@@ -357,6 +402,10 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(autoSpeakStorageKey, String(autoSpeak));
   }, [autoSpeak]);
+
+  useEffect(() => {
+    window.localStorage.setItem(advancedModelsStorageKey, String(showAdvancedModels));
+  }, [showAdvancedModels]);
 
   useEffect(() => {
     if (!selectedVoice) {
@@ -507,6 +556,52 @@ export default function App() {
     }
   }
 
+  async function refreshStt(showBusy = true) {
+    if (showBusy) {
+      setIsRefreshingStt(true);
+    }
+
+    try {
+      const nextSttStatus = await getSttStatus();
+
+      startTransition(() => {
+        setSttStatus(nextSttStatus);
+        if (!nextSttStatus.ready) {
+          setVoiceInputActivity({
+            state: "error",
+            message: "Speech input is not ready.",
+            detail: nextSttStatus.message,
+          });
+        } else {
+          setVoiceInputActivity((currentActivity) =>
+            currentActivity.state === "recording" || currentActivity.state === "transcribing"
+              ? currentActivity
+              : {
+                  state: "idle",
+                  message: "Voice input idle.",
+                  detail: `${nextSttStatus.language} · ${nextSttStatus.threads} thread${nextSttStatus.threads === 1 ? "" : "s"}`,
+                },
+          );
+        }
+      });
+    } catch (sttError) {
+      const message = formatInvokeError(sttError);
+
+      startTransition(() => {
+        setSttStatus(null);
+        setVoiceInputActivity({
+          state: "error",
+          message: "Could not load speech input status.",
+          detail: message,
+        });
+      });
+    } finally {
+      if (showBusy) {
+        setIsRefreshingStt(false);
+      }
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -560,7 +655,12 @@ export default function App() {
           setTtsPitch(config.ttsPitch);
         });
 
-        await Promise.all([refreshBackend(false), refreshControl(false), refreshTts(false)]);
+        await Promise.all([
+          refreshBackend(false),
+          refreshControl(false),
+          refreshTts(false),
+          refreshStt(false),
+        ]);
       } catch (bootstrapError) {
         const message = formatInvokeError(bootstrapError);
 
@@ -585,6 +685,16 @@ export default function App() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const recording = activeRecordingRef.current;
+      activeRecordingRef.current = null;
+      if (recording) {
+        void recording.cancel();
+      }
     };
   }, []);
 
@@ -854,6 +964,160 @@ export default function App() {
     }
   }
 
+  async function handleStartVoiceCapture() {
+    if (isRecordingVoice || isTranscribingVoice) {
+      return;
+    }
+
+    if (!sttStatus?.ready) {
+      const detail = sttStatus?.message || "Configure whisper.cpp before recording.";
+      setVoiceInputActivity({
+        state: "error",
+        message: "Speech input is not ready.",
+        detail,
+      });
+      setError(detail);
+      return;
+    }
+
+    try {
+      if (ttsStatus?.speaking) {
+        await handleStopSpeaking();
+      }
+
+      const capture = await startAudioCapture();
+      activeRecordingRef.current = capture;
+      setIsRecordingVoice(true);
+      setError("");
+      setVoiceInputActivity({
+        state: "recording",
+        message: "Recording from the microphone...",
+        detail: "Click stop when you finish speaking.",
+      });
+      setActivity({
+        tone: "generation",
+        message: "Listening for voice input...",
+        detail: "Speech stays on the PC until transcription finishes.",
+      });
+    } catch (captureError) {
+      const message = formatInvokeError(captureError);
+      setVoiceInputActivity({
+        state: "error",
+        message: "Microphone capture failed.",
+        detail: message,
+      });
+      setError(message);
+    }
+  }
+
+  async function handleCancelVoiceCapture() {
+    const capture = activeRecordingRef.current;
+    activeRecordingRef.current = null;
+
+    if (!capture) {
+      return;
+    }
+
+    setIsRecordingVoice(false);
+
+    try {
+      await capture.cancel();
+      setVoiceInputActivity({
+        state: "idle",
+        message: "Voice input idle.",
+        detail: "Recording canceled.",
+      });
+      setActivity({
+        tone: "idle",
+        message: "Voice capture canceled.",
+      });
+    } catch (cancelError) {
+      const message = formatInvokeError(cancelError);
+      setVoiceInputActivity({
+        state: "error",
+        message: "Could not cancel microphone capture.",
+        detail: message,
+      });
+      setError(message);
+    }
+  }
+
+  async function handleStopVoiceCapture() {
+    const capture = activeRecordingRef.current;
+    activeRecordingRef.current = null;
+
+    if (!capture) {
+      return;
+    }
+
+    setIsRecordingVoice(false);
+    setIsTranscribingVoice(true);
+    setVoiceInputActivity({
+      state: "transcribing",
+      message: "Transcribing with whisper.cpp...",
+      detail: sttStatus
+        ? `${sttStatus.language} · ${sttStatus.threads} thread${sttStatus.threads === 1 ? "" : "s"}`
+        : null,
+    });
+    setActivity({
+      tone: "generation",
+      message: "Transcribing microphone audio...",
+      detail: "Running local whisper.cpp on the PC.",
+    });
+
+    try {
+      const recording = await capture.stop();
+      const response = await transcribeAudio({
+        audioBytes: Array.from(recording.wavBytes),
+        language: sttStatus?.language || runtimeConfig?.sttLanguage,
+      });
+      const nextDraft = response.text.trim();
+
+      startTransition(() => {
+        setDraft((currentDraft) => {
+          if (!nextDraft) {
+            return currentDraft;
+          }
+
+          if (!currentDraft.trim()) {
+            return nextDraft;
+          }
+
+          return `${currentDraft.trim()}\n${nextDraft}`;
+        });
+        setVoiceInputActivity({
+          state: "idle",
+          message: "Voice input transcribed.",
+          detail: `${Math.max(recording.durationMs / 1000, 0.1).toFixed(1)}s clip · review before sending`,
+        });
+        setActivity({
+          tone: "success",
+          message: "Voice transcription ready.",
+          detail: nextDraft,
+        });
+        setError("");
+      });
+    } catch (transcriptionError) {
+      const message = formatInvokeError(transcriptionError);
+
+      startTransition(() => {
+        setVoiceInputActivity({
+          state: "error",
+          message: "Voice transcription failed.",
+          detail: message,
+        });
+        setActivity({
+          tone: "error",
+          message: "Voice transcription failed.",
+          detail: message,
+        });
+        setError(message);
+      });
+    } finally {
+      setIsTranscribingVoice(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -877,10 +1141,17 @@ export default function App() {
     const userMessage = createMessage("user", prompt);
     const assistantMessageId = crypto.randomUUID();
     const streamRequestId = crypto.randomUUID();
-    const requestMessages = applyClientPromptPrefix(
-      normalizeConversation([...messages, userMessage]),
-      activeProfile?.clientPromptPrefix || "",
-    );
+    const chatRequest = buildChatCompletionRequest({
+      prompt,
+      messages,
+      userMessage,
+      systemPrompt: runtimeConfig.assistantSystemPrompt,
+      clientPromptPrefix: activeProfile?.clientPromptPrefix || "",
+      requestId: streamRequestId,
+      toolMode,
+      filePath,
+      conversationId: conversationId ?? undefined,
+    });
     const nextMessages = [
       ...messages,
       userMessage,
@@ -1009,16 +1280,7 @@ export default function App() {
       });
 
       const response = await chatCompletionStream({
-        prompt,
-        maxTokens: 192,
-        temperature: 0.35,
-        systemPrompt: runtimeConfig.assistantSystemPrompt,
-        currentDate: formatCurrentDateContext(),
-        requestId: streamRequestId,
-        toolMode,
-        filePath: filePath.trim() || undefined,
-        messages: requestMessages,
-        conversationId: conversationId ?? undefined,
+        ...chatRequest,
       });
 
       const assistantMeta = formatAssistantMeta(response.model, response.toolMode, response.toolDetail);
@@ -1150,6 +1412,7 @@ export default function App() {
                   })
                   .catch(() => {});
                 void refreshTts(false);
+                void refreshStt(false);
                 void refreshBackend(false);
               }}
             />
@@ -1360,18 +1623,53 @@ export default function App() {
                     </p>
                     <p>Configured fallback: {runtimeConfig?.llmModel || "Loading..."}</p>
                     <p>SearXNG: {runtimeConfig?.searxngUrl || "Loading..."}</p>
+                    <p>Voice input: {sttStatus?.ready ? "whisper.cpp ready" : sttStatus?.message || "Not configured"}</p>
                     {activeProfile?.clientPromptPrefix ? (
                       <p>Client prompt prefix active: {activeProfile.clientPromptPrefix.trim()}</p>
                     ) : null}
                   </div>
 
-                  <Button
-                    type="submit"
-                    disabled={sendDisabled}
-                  >
-                    <Send className="size-4" />
-                    {isSending ? "Receiving..." : "Send"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isRecordingVoice ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          onClick={() => void handleStopVoiceCapture()}
+                          disabled={isTranscribingVoice}
+                        >
+                          <Square className="size-4" />
+                          Stop recording
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void handleCancelVoiceCapture()}
+                          disabled={isTranscribingVoice}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handleStartVoiceCapture()}
+                        disabled={isSending || isTranscribingVoice || !sttStatus?.ready}
+                      >
+                        <Mic className="size-4" />
+                        {isTranscribingVoice ? "Transcribing..." : "Record voice"}
+                      </Button>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={sendDisabled}
+                    >
+                      <Send className="size-4" />
+                      {isSending ? "Receiving..." : "Send"}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </CardContent>
@@ -1494,22 +1792,32 @@ export default function App() {
                   Switch the Pi backend without shell access.
                 </CardDescription>
                 <CardAction>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void refreshControl()}
-                    disabled={isRefreshingControl || !!switchingAlias}
-                  >
-                    <RefreshCw className="size-4" />
-                    {isRefreshingControl ? "Refreshing..." : "Refresh"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={showAdvancedModels ? "secondary" : "outline"}
+                      onClick={() => setShowAdvancedModels((current) => !current)}
+                    >
+                      {showAdvancedModels ? "Hide advanced" : "Show advanced"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void refreshControl()}
+                      disabled={isRefreshingControl || !!switchingAlias}
+                    >
+                      <RefreshCw className="size-4" />
+                      {isRefreshingControl ? "Refreshing..." : "Refresh"}
+                    </Button>
+                  </div>
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-3">
-                {sortedModelProfiles.length ? (
+                {visibleModelProfiles.length ? (
                   <>
-                    {sortedModelProfiles.map((model) => {
+                    {visibleModelProfiles.map((model) => {
                       const isActive = model.active || model.alias === controlState?.currentAlias;
                       const effectiveTier = getEffectiveProfileTier(model, controlState);
                       const isSwitchingToModel = switchingAlias === model.alias;
@@ -1578,10 +1886,84 @@ export default function App() {
               <CardHeader>
                 <CardTitle>Voice</CardTitle>
                 <CardDescription>
-                  Windows-native speech with voice and output routing.
+                  Local speech input with whisper.cpp and Windows-native speech output.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div
+                  className={cn(
+                    "rounded-lg border p-3 transition-colors",
+                    getVoiceInputStateClasses(voiceInputActivity.state),
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <Mic className="mt-0.5 size-4" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">{voiceInputActivity.message}</p>
+                      {voiceInputActivity.detail ? (
+                        <p className="text-xs text-current/80">{voiceInputActivity.detail}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Speech input
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isRecordingVoice ? "destructive" : "outline"}
+                        onClick={() =>
+                          void (isRecordingVoice
+                            ? handleStopVoiceCapture()
+                            : handleStartVoiceCapture())
+                        }
+                        disabled={isTranscribingVoice || !sttStatus?.ready}
+                      >
+                        {isRecordingVoice ? <Square className="size-4" /> : <Mic className="size-4" />}
+                        {isRecordingVoice ? "Stop" : "Record"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isRefreshingStt}
+                        onClick={() => void refreshStt()}
+                      >
+                        <RefreshCw className="size-4" />
+                        {isRefreshingStt ? "Refreshing..." : "Refresh"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Backend</span>
+                      <span>{sttStatus?.backend || "Unknown"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Language</span>
+                      <span>{sttStatus?.language || runtimeConfig?.sttLanguage || "en"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Threads</span>
+                      <span>{sttStatus?.threads || runtimeConfig?.sttThreads || 4}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Model</span>
+                      <span className="max-w-[12rem] truncate">
+                        {sttStatus?.configuredModelPath || "Not configured"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
                 <div
                   className={cn(
                     "rounded-lg border p-3 transition-colors",

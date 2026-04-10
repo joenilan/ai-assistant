@@ -16,6 +16,13 @@ export interface RuntimeConfig {
   llmModel: string;
   llmTimeoutMs: number;
   assistantSystemPrompt: string;
+  assistantPersonalityPreset: string;
+  assistantPersonalityCustom: string;
+  sttBackend: string;
+  whisperCppPath: string;
+  whisperModelPath: string;
+  sttLanguage: string;
+  sttThreads: number;
   ttsBackend: string;
   ttsVoice: string;
   ttsOutputDevice: string;
@@ -87,6 +94,7 @@ export interface ChatCompletionRequest {
   toolMode?: AssistantToolMode;
   filePath?: string;
   currentDate?: string;
+  trustedContext?: string;
   conversationId?: number;
 }
 
@@ -155,6 +163,29 @@ export interface SpeakTextRequest {
   rate?: number;
   volume?: number;
   pitch?: number;
+}
+
+export interface SttStatus {
+  available: boolean;
+  ready: boolean;
+  backend: string;
+  configuredBinaryPath: string;
+  configuredModelPath: string;
+  language: string;
+  threads: number;
+  message: string;
+}
+
+export interface TranscribeAudioRequest {
+  audioBytes: number[];
+  language?: string;
+  prompt?: string;
+}
+
+export interface TranscribeAudioResponse {
+  text: string;
+  backend: string;
+  language: string;
 }
 
 export type SettingsMap = Record<string, string>;
@@ -243,6 +274,10 @@ export async function getTtsStatus() {
   return invoke<TtsStatus>("get_tts_status");
 }
 
+export async function getSttStatus() {
+  return invoke<SttStatus>("get_stt_status");
+}
+
 export async function speakText(request: SpeakTextRequest) {
   return invoke<void>("speak_text", { request });
 }
@@ -253,6 +288,10 @@ export async function stopTts() {
 
 export async function enqueueTts(request: SpeakTextRequest) {
   return invoke<void>("enqueue_tts", { request });
+}
+
+export async function transcribeAudio(request: TranscribeAudioRequest) {
+  return invoke<TranscribeAudioResponse>("transcribe_audio", { request });
 }
 
 export async function chatCompletion(request: ChatCompletionRequest) {

@@ -35,6 +35,8 @@
 - Tool use, search, memory, file access, and UI state belong in the application layer.
 - Keep prompts short, tool results distilled, and responses concise by default.
 - Prefer deterministic app logic for permissions, routing, and state over letting a small model improvise everything.
+- Personality is a tone layer, not a source of truth for live facts or tool policy.
+- Personality presets and custom guidance should shape delivery style without weakening grounding, brevity, or safety.
 
 ## Hard Constraints
 - Do not assume cloud-only inference.
@@ -144,6 +146,7 @@ This split matters because the selected Pi-scale models will degrade badly if ev
 - Default to short replies unless the user explicitly asks for depth.
 - The current implementation already persists conversation summaries in SQLite and injects them from the Rust host before chat generation.
 - The current implementation still trims recent raw turns with a blunt turn-count heuristic; that should eventually be replaced with a token-budget policy.
+- The current implementation also supports personality presets plus custom personality guidance that are injected into the system prompt from runtime settings.
 
 ## Voice And Avatar Strategy
 - Run voice input on the PC.
@@ -180,6 +183,7 @@ This split matters because the selected Pi-scale models will degrade badly if ev
 - `whisper.cpp` aligns well with the existing `llama.cpp`-style local inference approach.
 - Windows-native `WinRT` speech gives the app better voice coverage and cleaner output routing without adding a cloud dependency.
 - This pairing minimizes early complexity while preserving a clean path to better voices later.
+- Current app state: first-pass click-to-talk transcription is being added through local `whisper.cpp`; global push-to-talk is still a later step.
 
 ## Recommended First Prototypes
 - Prototype a transparent Tauri avatar window that can be moved, pinned, and toggled between interactive and click-through.
@@ -224,7 +228,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add `whisper.cpp` speech-to-text
 - Add interrupt and cancel behavior
 - Add optional wake word after the voice loop is stable
-- Current state: TTS is in, push-to-talk and STT are not
+- Current state: TTS is in, first-pass click-to-talk STT is being added, and global push-to-talk is not done yet
 
 ### Phase 4: Living Avatar
 - Add avatar rendering
@@ -432,7 +436,8 @@ Alias mapping:
 - `ASSISTANT_SYSTEM_PROMPT`
 - `ASSISTANT_MEMORY_DB_PATH`
 - `STT_BACKEND`
-- `STT_MODEL`
+- `STT_LANGUAGE`
+- `STT_THREADS`
 - `TTS_BACKEND`
 - `TTS_VOICE`
 - `TTS_OUTPUT_DEVICE`

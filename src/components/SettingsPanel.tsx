@@ -33,7 +33,15 @@ const DEFAULTS: SettingsMap = {
   llm_timeout_ms: "30000",
   assistant_system_prompt:
     "You are a concise local desktop assistant. Answer clearly, stay grounded in available context, and do not invent facts when the app can look them up instead.",
+  assistant_personality_preset: "balanced",
+  assistant_personality_custom: "",
+  stt_backend: "whispercpp",
+  whisper_cpp_path: "",
+  whisper_model_path: "",
+  stt_language: "en",
+  stt_threads: "4",
   llm_control_base_url: "http://192.168.1.151:18082",
+  searxng_url: "http://192.168.1.151:8888",
   tts_voice: "Microsoft Zira Desktop",
   tts_output_device: "",
   tts_rate: "1.0",
@@ -110,7 +118,7 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
           <TabsList className="w-full">
             <TabsTrigger value="backend" className="flex-1">Backend</TabsTrigger>
             <TabsTrigger value="voice" className="flex-1">Voice</TabsTrigger>
-            <TabsTrigger value="app" className="flex-1">App</TabsTrigger>
+            <TabsTrigger value="assistant" className="flex-1">Assistant</TabsTrigger>
           </TabsList>
 
           {/* ── Backend tab ── */}
@@ -201,6 +209,64 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
 
           {/* ── Voice tab ── */}
           <TabsContent value="voice" className="space-y-4 mt-4">
+            <div className="space-y-1.5">
+              <Label>STT backend</Label>
+              <Select
+                value={field(values, "stt_backend")}
+                onValueChange={(v) => set("stt_backend", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="whispercpp">whisper.cpp</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>whisper.cpp binary</Label>
+              <Input
+                value={field(values, "whisper_cpp_path")}
+                onChange={(e) => set("whisper_cpp_path", e.target.value)}
+                placeholder="C:\\path\\to\\whisper-cli.exe or its folder"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Whisper model path</Label>
+              <Input
+                value={field(values, "whisper_model_path")}
+                onChange={(e) => set("whisper_model_path", e.target.value)}
+                placeholder="C:\\path\\to\\ggml-base.en.bin"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>STT language</Label>
+                <Input
+                  value={field(values, "stt_language")}
+                  onChange={(e) => set("stt_language", e.target.value)}
+                  placeholder="en"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>STT threads</Label>
+                <Input
+                  value={field(values, "stt_threads")}
+                  onChange={(e) => set("stt_threads", e.target.value)}
+                  placeholder="4"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-muted/25 p-3 text-xs text-muted-foreground">
+              Click-to-talk records on the PC, then sends the WAV to local `whisper.cpp` for
+              transcription. Start with a small English model and optimize later.
+            </div>
+
             <div className="space-y-1.5">
               <Label>Voice</Label>
               {voices.length > 0 ? (
@@ -305,8 +371,8 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
             </div>
           </TabsContent>
 
-          {/* ── App tab ── */}
-          <TabsContent value="app" className="space-y-4 mt-4">
+          {/* ── Assistant tab ── */}
+          <TabsContent value="assistant" className="space-y-4 mt-4">
             <div className="space-y-1.5">
               <Label>SearXNG URL</Label>
               <Input
@@ -316,6 +382,42 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
               />
               <p className="text-xs text-muted-foreground">
                 Self-hosted SearXNG instance used for web-grounded answers.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Personality preset</Label>
+              <Select
+                value={field(values, "assistant_personality_preset")}
+                onValueChange={(v) => set("assistant_personality_preset", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select personality" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="balanced">Balanced</SelectItem>
+                  <SelectItem value="calm">Calm</SelectItem>
+                  <SelectItem value="direct">Direct</SelectItem>
+                  <SelectItem value="playful">Playful</SelectItem>
+                  <SelectItem value="custom">Custom only</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Shapes reply tone without changing the tool-first grounding rules.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Custom personality guidance</Label>
+              <Textarea
+                value={field(values, "assistant_personality_custom")}
+                onChange={(e) => set("assistant_personality_custom", e.target.value)}
+                rows={4}
+                className="resize-none"
+                placeholder="Example: warm, observant, a little sarcastic, but never verbose."
+              />
+              <p className="text-xs text-muted-foreground">
+                Optional. Appended after the preset, or used by itself when preset is `custom`.
               </p>
             </div>
           </TabsContent>

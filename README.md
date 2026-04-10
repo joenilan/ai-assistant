@@ -14,6 +14,8 @@ This scaffold currently proves the first milestone:
 - web search grounding through SearXNG
 - local text-file grounding for file-based answers
 - local Windows-native TTS with voice selection, output-device routing, and stop support
+- first-pass click-to-talk with local `whisper.cpp` transcription on the PC
+- personality presets plus custom personality guidance in app settings
 - environment-driven runtime config
 - backend-owned model reporting, status checks, and streamed replies
 - frontend-triggered model switching over LAN through the Pi control API
@@ -67,6 +69,13 @@ Supported variables:
 - `LLM_MODEL`
 - `LLM_TIMEOUT_MS`
 - `ASSISTANT_SYSTEM_PROMPT`
+- `ASSISTANT_PERSONALITY_PRESET`
+- `ASSISTANT_PERSONALITY_CUSTOM`
+- `STT_BACKEND`
+- `WHISPER_CPP_PATH`
+- `WHISPER_MODEL_PATH`
+- `STT_LANGUAGE`
+- `STT_THREADS`
 - `TTS_BACKEND`
 - `TTS_VOICE`
 - `TTS_OUTPUT_DEVICE`
@@ -79,6 +88,7 @@ Default Pi values already point at:
 - `http://192.168.1.151:18082`
 - `http://192.168.1.151:8888/search`
 - `gemma-3-1b-it-Q4_K_M.gguf`
+- local `whisper.cpp` stays unset until you point the app at a binary and model
 - `Microsoft Zira Desktop`
 - system default audio output unless `TTS_OUTPUT_DEVICE` is set
 
@@ -115,6 +125,24 @@ cargo check
 2. Add tray presence and the transparent avatar overlay window.
 3. Add smarter auto-routing and tighter file permission boundaries.
 4. Add memory/settings persistence beyond local browser storage.
+
+## Voice Input
+
+The app now supports a first-pass local speech-input path:
+
+- click `Record voice`
+- speak into the PC microphone
+- click `Stop recording`
+- the app sends the recorded WAV to local `whisper.cpp`
+- the transcript is inserted into the composer for review before sending
+
+Set these before using it:
+
+- `WHISPER_CPP_PATH` to `whisper-cli.exe` or its containing directory
+- `WHISPER_MODEL_PATH` to a local Whisper model such as `ggml-base.en.bin`
+- optional: `STT_LANGUAGE` and `STT_THREADS`
+
+This is intentionally conservative for v1. It is not wake word and it is not global push-to-talk yet.
 
 Project direction and architecture notes live in [AGENTS.md](./AGENTS.md).
 
