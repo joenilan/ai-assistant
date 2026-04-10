@@ -183,7 +183,7 @@ This split matters because the selected Pi-scale models will degrade badly if ev
 - `whisper.cpp` aligns well with the existing `llama.cpp`-style local inference approach.
 - Windows-native `WinRT` speech gives the app better voice coverage and cleaner output routing without adding a cloud dependency.
 - This pairing minimizes early complexity while preserving a clean path to better voices later.
-- Current app state: first-pass click-to-talk transcription is being added through local `whisper.cpp`; global push-to-talk is still a later step.
+- Current app state: local `whisper.cpp` transcription is in with click-to-talk, global push-to-talk, and an optional open-mic mode.
 
 ## Recommended First Prototypes
 - Prototype a transparent Tauri avatar window that can be moved, pinned, and toggled between interactive and click-through.
@@ -228,7 +228,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add `whisper.cpp` speech-to-text
 - Add interrupt and cancel behavior
 - Add optional wake word after the voice loop is stable
-- Current state: TTS is in, first-pass click-to-talk STT is being added, and global push-to-talk is not done yet
+- Current state: TTS is in, `whisper.cpp` STT is in, push-to-talk is in, and optional open-mic detection is in for first pass conversation flow
 
 ### Phase 4: Living Avatar
 - Add avatar rendering

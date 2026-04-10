@@ -23,6 +23,7 @@ export interface RuntimeConfig {
   whisperModelPath: string;
   sttLanguage: string;
   sttThreads: number;
+  pushToTalkShortcut: string;
   ttsBackend: string;
   ttsVoice: string;
   ttsOutputDevice: string;
@@ -186,6 +187,11 @@ export interface TranscribeAudioResponse {
   text: string;
   backend: string;
   language: string;
+}
+
+export interface PushToTalkEvent {
+  shortcut: string;
+  state: "pressed" | "released";
 }
 
 export type SettingsMap = Record<string, string>;

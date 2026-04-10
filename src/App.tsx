@@ -56,13 +56,20 @@ import {
   type ChatStreamEvent,
   type ControlState,
   type PersistedMessage,
+  type PushToTalkEvent,
   type RuntimeConfig,
   type SttStatus,
   type TtsStateEvent,
   type TtsStatus,
 } from "@/lib/assistant";
 import { buildChatCompletionRequest } from "@/lib/assistant-session";
-import { startAudioCapture, type ActiveAudioCapture } from "@/lib/audio-capture";
+import {
+  startAudioCapture,
+  startOpenMicMonitor,
+  type ActiveAudioCapture,
+  type ActiveOpenMicMonitor,
+  type RecordedAudio,
+} from "@/lib/audio-capture";
 import {
   getEffectiveProfileTier,
   getActiveProfile,
@@ -97,6 +104,7 @@ const autoSpeakStorageKey = "ai-assistant-auto-speak";
 const voiceStorageKey = "ai-assistant-voice";
 const audioDeviceStorageKey = "ai-assistant-audio-device";
 const advancedModelsStorageKey = "ai-assistant-show-advanced-models";
+const openMicStorageKey = "ai-assistant-open-mic";
 
 type ActivityTone =
   | AssistantProgressEvent["tone"]
@@ -115,10 +123,12 @@ interface VoiceActivity {
 }
 
 interface VoiceInputActivity {
-  state: "idle" | "recording" | "transcribing" | "error";
+  state: "idle" | "listening" | "recording" | "transcribing" | "error";
   message: string;
   detail?: string | null;
 }
+
+type VoiceCaptureSource = "manual" | "shortcut" | "open-mic";
 
 const initialTranscript: ChatMessage[] = [
   {
@@ -220,6 +230,8 @@ function getVoiceStateClasses(state: VoiceActivity["state"]) {
 
 function getVoiceInputStateClasses(state: VoiceInputActivity["state"]) {
   switch (state) {
+    case "listening":
+      return "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300";
     case "recording":
       return "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300";
     case "transcribing":
@@ -291,6 +303,12 @@ function persistedToChatMessage(msg: PersistedMessage): ChatMessage {
   };
 }
 
+function formatVoiceInputDetail(sttStatus: SttStatus | null, runtimeConfig: RuntimeConfig | null) {
+  const language = sttStatus?.language || runtimeConfig?.sttLanguage || "en";
+  const threads = sttStatus?.threads || runtimeConfig?.sttThreads || 4;
+  return `${language} · ${threads} thread${threads === 1 ? "" : "s"}`;
+}
+
 export default function App() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof document === "undefined") {
@@ -336,6 +354,13 @@ export default function App() {
 
     return window.localStorage.getItem(advancedModelsStorageKey) === "true";
   });
+  const [openMicEnabled, setOpenMicEnabled] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem(openMicStorageKey) === "true";
+  });
   const [voiceActivity, setVoiceActivity] = useState<VoiceActivity>({
     state: "idle",
     message: "Voice output idle.",
@@ -360,7 +385,27 @@ export default function App() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
-  const activeRecordingRef = useRef<ActiveAudioCapture | null>(null);
+  const activeRecordingRef = useRef<{
+    capture: ActiveAudioCapture;
+    submitOnSuccess: boolean;
+    source: VoiceCaptureSource;
+  } | null>(null);
+  const openMicMonitorRef = useRef<ActiveOpenMicMonitor | null>(null);
+  const startVoiceCaptureRef = useRef<
+    (options?: {
+      submitOnSuccess?: boolean;
+      source?: Extract<VoiceCaptureSource, "manual" | "shortcut">;
+    }) => Promise<void>
+  >(async () => {});
+  const stopVoiceCaptureRef = useRef<() => Promise<void>>(async () => {});
+  const processRecordedAudioRef = useRef<
+    (recording: RecordedAudio, options: { submitOnSuccess: boolean; source: VoiceCaptureSource }) => Promise<void>
+  >(async () => {});
+  const voiceCaptureContextRef = useRef({
+    sttReady: false,
+    canStart: false,
+    isRecording: false,
+  });
   // Counts completed user+assistant exchanges for the current conversation.
   // Summarization fires every SUMMARIZE_EVERY exchanges (background, non-blocking).
   const exchangeCountRef = useRef(0);
@@ -375,6 +420,36 @@ export default function App() {
   });
 
   const backendModel = getBackendModel(controlState, backendStatus, runtimeConfig);
+  const voiceInputDetail = formatVoiceInputDetail(sttStatus, runtimeConfig);
+  const canStartVoiceCapture =
+    !!sttStatus?.ready &&
+    !isSending &&
+    !isTranscribingVoice &&
+    !isBootstrapping &&
+    !switchingAlias &&
+    controlState?.ready !== false;
+  const openMicPauseReason = !sttStatus?.ready
+    ? sttStatus?.message || "Speech input is not ready."
+    : ttsStatus?.speaking
+      ? "Open mic pauses while the assistant is speaking."
+      : isRecordingVoice
+        ? "Open mic pauses while push-to-talk is active."
+        : isTranscribingVoice
+          ? "Open mic pauses while whisper.cpp is transcribing."
+          : isSending
+            ? "Open mic pauses while the assistant is replying."
+            : isBootstrapping
+              ? "Open mic is waiting for the runtime to finish bootstrapping."
+              : switchingAlias
+                ? "Open mic pauses while the Pi switches models."
+                : controlState?.ready === false
+                  ? "Open mic is waiting for the Pi backend to become ready."
+                  : "";
+  const shouldPauseOpenMic =
+    !openMicEnabled ||
+    !canStartVoiceCapture ||
+    isRecordingVoice ||
+    !!ttsStatus?.speaking;
   const sendDisabled =
     !draft.trim() ||
     isSending ||
@@ -408,6 +483,10 @@ export default function App() {
   }, [showAdvancedModels]);
 
   useEffect(() => {
+    window.localStorage.setItem(openMicStorageKey, String(openMicEnabled));
+  }, [openMicEnabled]);
+
+  useEffect(() => {
     if (!selectedVoice) {
       return;
     }
@@ -418,6 +497,14 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem(audioDeviceStorageKey, selectedOutputDevice);
   }, [selectedOutputDevice]);
+
+  useEffect(() => {
+    voiceCaptureContextRef.current = {
+      sttReady: !!sttStatus?.ready,
+      canStart: canStartVoiceCapture,
+      isRecording: isRecordingVoice,
+    };
+  }, [canStartVoiceCapture, isRecordingVoice, sttStatus?.ready]);
 
   // ttsRate/ttsVolume/ttsPitch are now persisted via the settings DB (save via SettingsPanel).
   // The sliders update live state only; they do not need localStorage anymore.
@@ -693,7 +780,13 @@ export default function App() {
       const recording = activeRecordingRef.current;
       activeRecordingRef.current = null;
       if (recording) {
-        void recording.cancel();
+        void recording.capture.cancel();
+      }
+
+      const monitor = openMicMonitorRef.current;
+      openMicMonitorRef.current = null;
+      if (monitor) {
+        void monitor.stop();
       }
     };
   }, []);
@@ -771,6 +864,162 @@ export default function App() {
       void unlistenPromise?.then((unlisten) => unlisten());
     };
   }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlistenPromise: Promise<() => void> | null = null;
+
+    unlistenPromise = listen<PushToTalkEvent>("push-to-talk", (event) => {
+      if (disposed) {
+        return;
+      }
+
+      if (event.payload.state === "pressed") {
+        if (!voiceCaptureContextRef.current.canStart || voiceCaptureContextRef.current.isRecording) {
+          return;
+        }
+
+        void startVoiceCaptureRef.current({
+          submitOnSuccess: true,
+          source: "shortcut",
+        });
+        return;
+      }
+
+      if (activeRecordingRef.current?.source !== "shortcut") {
+        return;
+      }
+
+      void stopVoiceCaptureRef.current();
+    });
+
+    return () => {
+      disposed = true;
+      void unlistenPromise?.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sttStatus?.ready || isRecordingVoice || isTranscribingVoice) {
+      return;
+    }
+
+    if (openMicEnabled) {
+      startTransition(() => {
+        setVoiceInputActivity({
+          state: shouldPauseOpenMic ? "idle" : "listening",
+          message: shouldPauseOpenMic ? "Open mic standing by." : "Open mic armed.",
+          detail: shouldPauseOpenMic
+            ? openMicPauseReason || voiceInputDetail
+            : `${voiceInputDetail} · speech detection ready`,
+        });
+      });
+      return;
+    }
+
+    startTransition(() => {
+      setVoiceInputActivity({
+        state: "idle",
+        message: "Voice input idle.",
+        detail: voiceInputDetail,
+      });
+    });
+  }, [
+    isRecordingVoice,
+    isTranscribingVoice,
+    openMicEnabled,
+    openMicPauseReason,
+    shouldPauseOpenMic,
+    sttStatus?.ready,
+    voiceInputDetail,
+  ]);
+
+  useEffect(() => {
+    openMicMonitorRef.current?.setPaused(shouldPauseOpenMic);
+  }, [shouldPauseOpenMic]);
+
+  useEffect(() => {
+    if (!openMicEnabled || !sttStatus?.ready) {
+      const existingMonitor = openMicMonitorRef.current;
+      openMicMonitorRef.current = null;
+      if (existingMonitor) {
+        void existingMonitor.stop();
+      }
+      return;
+    }
+
+    let disposed = false;
+    let localMonitor: ActiveOpenMicMonitor | null = null;
+
+    void startOpenMicMonitor({
+      onSpeechStart: () => {
+        if (disposed) {
+          return;
+        }
+
+        startTransition(() => {
+          setVoiceInputActivity({
+            state: "recording",
+            message: "Open mic detected speech.",
+            detail: "Keep talking until the sentence is complete.",
+          });
+          setActivity({
+            tone: "generation",
+            message: "Open mic is capturing speech...",
+            detail: "Speech stays on the PC until transcription finishes.",
+          });
+        });
+      },
+      onSegment: async ({ recording }) => {
+        if (disposed) {
+          return;
+        }
+
+        localMonitor?.setPaused(true);
+        await processRecordedAudioRef.current(recording, {
+          submitOnSuccess: true,
+          source: "open-mic",
+        });
+      },
+    })
+      .then((monitor) => {
+        if (disposed) {
+          void monitor.stop();
+          return;
+        }
+
+        localMonitor = monitor;
+        openMicMonitorRef.current = monitor;
+        monitor.setPaused(shouldPauseOpenMic);
+      })
+      .catch((monitorError) => {
+        const message = formatInvokeError(monitorError);
+        startTransition(() => {
+          setVoiceInputActivity({
+            state: "error",
+            message: "Open mic failed to start.",
+            detail: message,
+          });
+          setActivity({
+            tone: "error",
+            message: "Open mic failed to start.",
+            detail: message,
+          });
+          setError(message);
+        });
+      });
+
+    return () => {
+      disposed = true;
+      const monitor = localMonitor || openMicMonitorRef.current;
+      if (monitor) {
+        if (openMicMonitorRef.current === monitor) {
+          openMicMonitorRef.current = null;
+        }
+        void monitor.stop();
+      }
+    };
+  }, [openMicEnabled, sttStatus?.ready]);
 
   useEffect(() => {
     const viewport = scrollViewportRef.current;
@@ -964,174 +1213,27 @@ export default function App() {
     }
   }
 
-  async function handleStartVoiceCapture() {
-    if (isRecordingVoice || isTranscribingVoice) {
-      return;
-    }
-
-    if (!sttStatus?.ready) {
-      const detail = sttStatus?.message || "Configure whisper.cpp before recording.";
-      setVoiceInputActivity({
-        state: "error",
-        message: "Speech input is not ready.",
-        detail,
-      });
-      setError(detail);
-      return;
-    }
-
-    try {
-      if (ttsStatus?.speaking) {
-        await handleStopSpeaking();
-      }
-
-      const capture = await startAudioCapture();
-      activeRecordingRef.current = capture;
-      setIsRecordingVoice(true);
-      setError("");
-      setVoiceInputActivity({
-        state: "recording",
-        message: "Recording from the microphone...",
-        detail: "Click stop when you finish speaking.",
-      });
-      setActivity({
-        tone: "generation",
-        message: "Listening for voice input...",
-        detail: "Speech stays on the PC until transcription finishes.",
-      });
-    } catch (captureError) {
-      const message = formatInvokeError(captureError);
-      setVoiceInputActivity({
-        state: "error",
-        message: "Microphone capture failed.",
-        detail: message,
-      });
-      setError(message);
-    }
-  }
-
-  async function handleCancelVoiceCapture() {
-    const capture = activeRecordingRef.current;
-    activeRecordingRef.current = null;
-
-    if (!capture) {
-      return;
-    }
-
-    setIsRecordingVoice(false);
-
-    try {
-      await capture.cancel();
-      setVoiceInputActivity({
-        state: "idle",
-        message: "Voice input idle.",
-        detail: "Recording canceled.",
-      });
-      setActivity({
-        tone: "idle",
-        message: "Voice capture canceled.",
-      });
-    } catch (cancelError) {
-      const message = formatInvokeError(cancelError);
-      setVoiceInputActivity({
-        state: "error",
-        message: "Could not cancel microphone capture.",
-        detail: message,
-      });
-      setError(message);
-    }
-  }
-
-  async function handleStopVoiceCapture() {
-    const capture = activeRecordingRef.current;
-    activeRecordingRef.current = null;
-
-    if (!capture) {
-      return;
-    }
-
-    setIsRecordingVoice(false);
-    setIsTranscribingVoice(true);
-    setVoiceInputActivity({
-      state: "transcribing",
-      message: "Transcribing with whisper.cpp...",
-      detail: sttStatus
-        ? `${sttStatus.language} · ${sttStatus.threads} thread${sttStatus.threads === 1 ? "" : "s"}`
-        : null,
-    });
-    setActivity({
-      tone: "generation",
-      message: "Transcribing microphone audio...",
-      detail: "Running local whisper.cpp on the PC.",
-    });
-
-    try {
-      const recording = await capture.stop();
-      const response = await transcribeAudio({
-        audioBytes: Array.from(recording.wavBytes),
-        language: sttStatus?.language || runtimeConfig?.sttLanguage,
-      });
-      const nextDraft = response.text.trim();
-
-      startTransition(() => {
-        setDraft((currentDraft) => {
-          if (!nextDraft) {
-            return currentDraft;
-          }
-
-          if (!currentDraft.trim()) {
-            return nextDraft;
-          }
-
-          return `${currentDraft.trim()}\n${nextDraft}`;
-        });
-        setVoiceInputActivity({
-          state: "idle",
-          message: "Voice input transcribed.",
-          detail: `${Math.max(recording.durationMs / 1000, 0.1).toFixed(1)}s clip · review before sending`,
-        });
-        setActivity({
-          tone: "success",
-          message: "Voice transcription ready.",
-          detail: nextDraft,
-        });
-        setError("");
-      });
-    } catch (transcriptionError) {
-      const message = formatInvokeError(transcriptionError);
-
-      startTransition(() => {
-        setVoiceInputActivity({
-          state: "error",
-          message: "Voice transcription failed.",
-          detail: message,
-        });
-        setActivity({
-          tone: "error",
-          message: "Voice transcription failed.",
-          detail: message,
-        });
-        setError(message);
-      });
-    } finally {
-      setIsTranscribingVoice(false);
-    }
-  }
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const prompt = draft.trim();
+  async function submitPrompt(
+    promptValue: string,
+    options?: {
+      clearDraft?: boolean;
+      allowWhileTranscribing?: boolean;
+    },
+  ) {
+    const prompt = promptValue.trim();
+    const clearDraft = options?.clearDraft ?? false;
+    const allowWhileTranscribing = options?.allowWhileTranscribing ?? false;
 
     if (
       !prompt ||
       isSending ||
+      (!allowWhileTranscribing && isTranscribingVoice) ||
       !runtimeConfig ||
       !!switchingAlias ||
       controlState?.ready === false ||
       (toolMode === "file" && !filePath.trim())
     ) {
-      return;
+      return false;
     }
 
     if (ttsStatus?.speaking) {
@@ -1170,7 +1272,10 @@ export default function App() {
       },
     ];
 
-    setDraft("");
+    if (clearDraft) {
+      setDraft("");
+    }
+
     setError("");
     setIsSending(true);
     setMessages(nextMessages);
@@ -1255,7 +1360,6 @@ export default function App() {
           );
         });
 
-        // Streaming TTS: speak complete sentences as they arrive.
         if (autoSpeak && delta && ttsStatus?.available && selectedVoiceOption) {
           streamBuffer += delta;
           const { sentences, remaining } = extractSentences(streamBuffer);
@@ -1279,11 +1383,12 @@ export default function App() {
         }
       });
 
-      const response = await chatCompletionStream({
-        ...chatRequest,
-      });
-
-      const assistantMeta = formatAssistantMeta(response.model, response.toolMode, response.toolDetail);
+      const response = await chatCompletionStream(chatRequest);
+      const assistantMeta = formatAssistantMeta(
+        response.model,
+        response.toolMode,
+        response.toolDetail,
+      );
       const resolvedToolMode = response.toolMode || "chat";
 
       startTransition(() => {
@@ -1315,7 +1420,6 @@ export default function App() {
         });
       });
 
-      // Persist this exchange to SQLite and trigger rolling summarization if due.
       if (conversationId !== null) {
         const convId = conversationId;
         void appendMessage(convId, "user", prompt, null, null, true).catch(() => {});
@@ -1330,13 +1434,10 @@ export default function App() {
 
         exchangeCountRef.current += 1;
         if (exchangeCountRef.current % SUMMARIZE_EVERY === 0) {
-          // Fire-and-forget: runs in background, result stored in DB,
-          // injected automatically on the next chatCompletionStream call.
           void summarizeConversation(convId).catch(() => {});
         }
       }
 
-      // Speak any text that didn't hit a sentence boundary during streaming.
       if (autoSpeak && ttsStatus?.available && selectedVoiceOption) {
         const tail = streamBuffer.trim() || (!streamSpeechStarted ? response.content : "");
         if (tail) {
@@ -1356,6 +1457,8 @@ export default function App() {
       } else if (autoSpeak && !streamSpeechStarted) {
         void handleSpeak(response.content);
       }
+
+      return true;
     } catch (sendError) {
       const message = formatInvokeError(sendError);
 
@@ -1376,12 +1479,260 @@ export default function App() {
           ),
         ]);
       });
+
+      return false;
     } finally {
       unlisten?.();
       unlistenProgress?.();
       setIsSending(false);
     }
   }
+
+  async function processRecordedAudio(
+    recording: RecordedAudio,
+    options: {
+      submitOnSuccess: boolean;
+      source: VoiceCaptureSource;
+    },
+  ) {
+    let restoreTranscribingState = true;
+
+    setIsTranscribingVoice(true);
+    setVoiceInputActivity({
+      state: "transcribing",
+      message: "Transcribing with whisper.cpp...",
+      detail: voiceInputDetail,
+    });
+    setActivity({
+      tone: "generation",
+      message: "Transcribing microphone audio...",
+      detail: "Running local whisper.cpp on the PC.",
+    });
+
+    try {
+      const response = await transcribeAudio({
+        audioBytes: Array.from(recording.wavBytes),
+        language: sttStatus?.language || runtimeConfig?.sttLanguage,
+      });
+      const nextPrompt = response.text.trim();
+
+      if (!nextPrompt) {
+        throw new Error("whisper.cpp returned no transcript.");
+      }
+
+      const clipDuration = `${Math.max(recording.durationMs / 1000, 0.1).toFixed(1)}s clip`;
+
+      if (options.submitOnSuccess) {
+        restoreTranscribingState = false;
+        setIsTranscribingVoice(false);
+        startTransition(() => {
+          setVoiceInputActivity({
+            state: openMicEnabled ? "listening" : "idle",
+            message:
+              options.source === "open-mic"
+                ? "Open mic captured speech."
+                : "Push-to-talk captured speech.",
+            detail: `${clipDuration} · sending to the assistant`,
+          });
+          setActivity({
+            tone: "success",
+            message: "Voice transcription ready.",
+            detail: nextPrompt,
+          });
+          setError("");
+        });
+
+        await submitPrompt(nextPrompt, {
+          allowWhileTranscribing: true,
+        });
+        return;
+      }
+
+      startTransition(() => {
+        setDraft((currentDraft) => {
+          if (!currentDraft.trim()) {
+            return nextPrompt;
+          }
+
+          return `${currentDraft.trim()}\n${nextPrompt}`;
+        });
+        setVoiceInputActivity({
+          state: "idle",
+          message: "Voice input transcribed.",
+          detail: `${clipDuration} · review before sending`,
+        });
+        setActivity({
+          tone: "success",
+          message: "Voice transcription ready.",
+          detail: nextPrompt,
+        });
+        setError("");
+      });
+    } catch (transcriptionError) {
+      const message = formatInvokeError(transcriptionError);
+
+      startTransition(() => {
+        setVoiceInputActivity({
+          state: "error",
+          message: "Voice transcription failed.",
+          detail: message,
+        });
+        setActivity({
+          tone: "error",
+          message: "Voice transcription failed.",
+          detail: message,
+        });
+        setError(message);
+      });
+    } finally {
+      if (restoreTranscribingState) {
+        setIsTranscribingVoice(false);
+      }
+    }
+  }
+
+  async function handleStartVoiceCapture(options?: {
+    submitOnSuccess?: boolean;
+    source?: Extract<VoiceCaptureSource, "manual" | "shortcut">;
+  }) {
+    if (isRecordingVoice || isTranscribingVoice) {
+      return;
+    }
+
+    if (!sttStatus?.ready || !canStartVoiceCapture) {
+      const detail =
+        sttStatus?.message ||
+        (controlState?.ready === false
+          ? "Wait for the Pi backend to become ready before recording."
+          : "Configure whisper.cpp before recording.");
+      setVoiceInputActivity({
+        state: "error",
+        message: "Speech input is not ready.",
+        detail,
+      });
+      setError(detail);
+      return;
+    }
+
+    const source = options?.source || "manual";
+
+    try {
+      if (ttsStatus?.speaking) {
+        await handleStopSpeaking();
+      }
+
+      const capture = await startAudioCapture();
+      activeRecordingRef.current = {
+        capture,
+        submitOnSuccess: options?.submitOnSuccess ?? false,
+        source,
+      };
+      setIsRecordingVoice(true);
+      setError("");
+      setVoiceInputActivity({
+        state: "recording",
+        message:
+          source === "shortcut"
+            ? "Push-to-talk is listening."
+            : "Recording from the microphone...",
+        detail:
+          source === "shortcut"
+            ? `Hold ${runtimeConfig?.pushToTalkShortcut || "the shortcut"} while you speak. Release to send.`
+            : "Click stop when you finish speaking.",
+      });
+      setActivity({
+        tone: "generation",
+        message:
+          source === "shortcut"
+            ? "Push-to-talk capture started."
+            : "Listening for voice input...",
+        detail: "Speech stays on the PC until transcription finishes.",
+      });
+    } catch (captureError) {
+      const message = formatInvokeError(captureError);
+      setVoiceInputActivity({
+        state: "error",
+        message: "Microphone capture failed.",
+        detail: message,
+      });
+      setError(message);
+    }
+  }
+
+  async function handleCancelVoiceCapture() {
+    const recording = activeRecordingRef.current;
+    activeRecordingRef.current = null;
+
+    if (!recording) {
+      return;
+    }
+
+    setIsRecordingVoice(false);
+
+    try {
+      await recording.capture.cancel();
+      setVoiceInputActivity({
+        state: "idle",
+        message: openMicEnabled ? "Open mic standing by." : "Voice input idle.",
+        detail: openMicEnabled ? openMicPauseReason || "Speech detection ready." : "Recording canceled.",
+      });
+      setActivity({
+        tone: "idle",
+        message: "Voice capture canceled.",
+      });
+    } catch (cancelError) {
+      const message = formatInvokeError(cancelError);
+      setVoiceInputActivity({
+        state: "error",
+        message: "Could not cancel microphone capture.",
+        detail: message,
+      });
+      setError(message);
+    }
+  }
+
+  async function handleStopVoiceCapture() {
+    const recording = activeRecordingRef.current;
+    activeRecordingRef.current = null;
+
+    if (!recording) {
+      return;
+    }
+
+    setIsRecordingVoice(false);
+
+    try {
+      const capturedAudio = await recording.capture.stop();
+      await processRecordedAudio(capturedAudio, {
+        submitOnSuccess: recording.submitOnSuccess,
+        source: recording.source,
+      });
+    } catch (stopError) {
+      const message = formatInvokeError(stopError);
+      setVoiceInputActivity({
+        state: "error",
+        message: "Microphone capture failed.",
+        detail: message,
+      });
+      setActivity({
+        tone: "error",
+        message: "Voice capture failed.",
+        detail: message,
+      });
+      setError(message);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await submitPrompt(draft, {
+      clearDraft: true,
+    });
+  }
+
+  startVoiceCaptureRef.current = handleStartVoiceCapture;
+  stopVoiceCaptureRef.current = handleStopVoiceCapture;
+  processRecordedAudioRef.current = processRecordedAudio;
 
   return (
     <main className="min-h-dvh bg-background text-foreground">
@@ -1654,8 +2005,13 @@ export default function App() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => void handleStartVoiceCapture()}
-                        disabled={isSending || isTranscribingVoice || !sttStatus?.ready}
+                        onClick={() =>
+                          void handleStartVoiceCapture({
+                            submitOnSuccess: false,
+                            source: "manual",
+                          })
+                        }
+                        disabled={!canStartVoiceCapture}
                       >
                         <Mic className="size-4" />
                         {isTranscribingVoice ? "Transcribing..." : "Record voice"}
@@ -1912,7 +2268,16 @@ export default function App() {
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Speech input
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={openMicEnabled ? "secondary" : "outline"}
+                        onClick={() => setOpenMicEnabled((currentValue) => !currentValue)}
+                        disabled={!sttStatus?.ready}
+                      >
+                        {openMicEnabled ? "Open mic on" : "Open mic off"}
+                      </Button>
                       <Button
                         type="button"
                         size="sm"
@@ -1920,9 +2285,12 @@ export default function App() {
                         onClick={() =>
                           void (isRecordingVoice
                             ? handleStopVoiceCapture()
-                            : handleStartVoiceCapture())
+                            : handleStartVoiceCapture({
+                                submitOnSuccess: false,
+                                source: "manual",
+                              }))
                         }
-                        disabled={isTranscribingVoice || !sttStatus?.ready}
+                        disabled={isTranscribingVoice || !canStartVoiceCapture}
                       >
                         {isRecordingVoice ? <Square className="size-4" /> : <Mic className="size-4" />}
                         {isRecordingVoice ? "Stop" : "Record"}
@@ -1954,12 +2322,25 @@ export default function App() {
                       <span>{sttStatus?.threads || runtimeConfig?.sttThreads || 4}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Push-to-talk</span>
+                      <span>{runtimeConfig?.pushToTalkShortcut || "Not configured"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="font-medium uppercase tracking-wide">Open mic</span>
+                      <span>{openMicEnabled ? "Armed" : "Off"}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
                       <span className="font-medium uppercase tracking-wide">Model</span>
                       <span className="max-w-[12rem] truncate">
                         {sttStatus?.configuredModelPath || "Not configured"}
                       </span>
                     </div>
                   </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Click-to-talk inserts a draft for review. Global push-to-talk and open mic
+                    transcribe and send automatically.
+                  </p>
                 </div>
 
                 <Separator />
@@ -2189,7 +2570,7 @@ export default function App() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <p>The Pi handles generation. The PC handles search, files, voice, and UI state.</p>
-                <p>Next: `whisper.cpp` push-to-talk, then tray presence and the avatar overlay.</p>
+                <p>Next: avatar overlay work, wake-word evaluation, and tighter voice polish.</p>
               </CardContent>
             </Card>
 

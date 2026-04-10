@@ -17,6 +17,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +41,7 @@ struct RuntimeConfig {
     whisper_model_path: String,
     stt_language: String,
     stt_threads: u32,
+    push_to_talk_shortcut: String,
     tts_backend: String,
     tts_voice: String,
     tts_output_device: String,
@@ -186,6 +188,13 @@ struct TtsStateEvent {
     output_device: Option<String>,
     message: String,
     detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PushToTalkEvent {
+    shortcut: String,
+    state: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -362,6 +371,10 @@ struct SettingsState {
     conn: Mutex<Connection>,
 }
 
+struct PushToTalkState {
+    registered_shortcut: Mutex<Option<String>>,
+}
+
 impl SettingsState {
     /// Read all persisted settings from the DB as a flat map.
     fn all(&self) -> HashMap<String, String> {
@@ -486,6 +499,11 @@ impl SettingsState {
             whisper_model_path: get("whisper_model_path", "WHISPER_MODEL_PATH", ""),
             stt_language: get("stt_language", "STT_LANGUAGE", "en"),
             stt_threads: get_u32("stt_threads", "STT_THREADS", 4).clamp(1, 16),
+            push_to_talk_shortcut: normalize_push_to_talk_shortcut(get(
+                "push_to_talk_shortcut",
+                "PUSH_TO_TALK_SHORTCUT",
+                "Ctrl+Alt+Space",
+            )),
             tts_backend,
             tts_voice: get("tts_voice", "TTS_VOICE", "Microsoft Zira Desktop"),
             tts_output_device: get("tts_output_device", "TTS_OUTPUT_DEVICE", ""),
@@ -515,6 +533,10 @@ fn normalize_stt_backend(value: String) -> String {
         "" | "whisper.cpp" | "whispercpp" => "whispercpp".to_string(),
         other => other.to_string(),
     }
+}
+
+fn normalize_push_to_talk_shortcut(value: String) -> String {
+    value.trim().to_string()
 }
 
 fn normalize_tts_backend(value: String) -> String {
@@ -1713,6 +1735,60 @@ fn build_upstream_messages(
     messages
 }
 
+fn emit_push_to_talk_event(
+    app: &tauri::AppHandle,
+    shortcut: &Shortcut,
+    event: ShortcutEvent,
+) -> Result<(), String> {
+    let state = match event.state {
+        ShortcutState::Pressed => "pressed",
+        ShortcutState::Released => "released",
+    };
+
+    app.emit(
+        "push-to-talk",
+        PushToTalkEvent {
+            shortcut: shortcut.to_string(),
+            state: state.to_string(),
+        },
+    )
+    .map_err(|error| format!("Could not emit push-to-talk event: {error}"))
+}
+
+fn sync_push_to_talk_shortcut(
+    app: &tauri::AppHandle,
+    settings: &SettingsState,
+    push_to_talk: &PushToTalkState,
+) -> Result<(), String> {
+    let configured_shortcut = settings.build_config().push_to_talk_shortcut;
+    let next_shortcut = configured_shortcut.trim().to_string();
+    let shortcut_manager = app.global_shortcut();
+    let mut registered = push_to_talk
+        .registered_shortcut
+        .lock()
+        .map_err(|_| "Could not acquire the push-to-talk state lock.".to_string())?;
+
+    if let Some(current_shortcut) = registered.clone() {
+        shortcut_manager
+            .unregister(current_shortcut.as_str())
+            .map_err(|error| format!("Could not unregister push-to-talk shortcut: {error}"))?;
+        *registered = None;
+    }
+
+    if next_shortcut.is_empty() {
+        return Ok(());
+    }
+
+    shortcut_manager
+        .on_shortcut(next_shortcut.as_str(), move |app, shortcut, event| {
+            let _ = emit_push_to_talk_event(app, shortcut, event);
+        })
+        .map_err(|error| format!("Could not register push-to-talk shortcut: {error}"))?;
+
+    *registered = Some(next_shortcut);
+    Ok(())
+}
+
 #[tauri::command]
 fn get_runtime_config(settings: tauri::State<'_, SettingsState>) -> RuntimeConfig {
     settings.build_config()
@@ -2752,22 +2828,28 @@ fn get_settings(settings: tauri::State<'_, SettingsState>) -> HashMap<String, St
 
 #[tauri::command]
 fn save_settings(
+    app: tauri::AppHandle,
     settings: tauri::State<'_, SettingsState>,
+    push_to_talk: tauri::State<'_, PushToTalkState>,
     values: HashMap<String, String>,
 ) -> Result<(), String> {
-    let conn = settings
-        .conn
-        .lock()
-        .map_err(|_| "Could not acquire settings DB lock.".to_string())?;
+    {
+        let conn = settings
+            .conn
+            .lock()
+            .map_err(|_| "Could not acquire settings DB lock.".to_string())?;
 
-    for (key, value) in &values {
-        conn.execute(
-            "INSERT INTO settings (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![key, value],
-        )
-        .map_err(|error| format!("Could not save setting `{key}`: {error}"))?;
+        for (key, value) in &values {
+            conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )
+            .map_err(|error| format!("Could not save setting `{key}`: {error}"))?;
+        }
     }
+
+    sync_push_to_talk_shortcut(&app, &settings, &push_to_talk)?;
 
     Ok(())
 }
@@ -2783,6 +2865,7 @@ pub fn run() {
     }));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup({
             let playback = Arc::clone(&playback);
 
@@ -2799,6 +2882,14 @@ pub fn run() {
                     cancelled: Arc::new(AtomicBool::new(false)),
                     playback: Arc::clone(&playback),
                 });
+                app.manage(PushToTalkState {
+                    registered_shortcut: Mutex::new(None),
+                });
+
+                let settings_state = app.state::<SettingsState>();
+                let push_to_talk_state = app.state::<PushToTalkState>();
+                sync_push_to_talk_shortcut(app.handle(), &settings_state, &push_to_talk_state)
+                    .map_err(Box::<dyn std::error::Error>::from)?;
 
                 // ── System tray ─────────────────────────────────────────────
                 let show_item =

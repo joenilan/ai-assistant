@@ -40,6 +40,7 @@ const DEFAULTS: SettingsMap = {
   whisper_model_path: "",
   stt_language: "en",
   stt_threads: "4",
+  push_to_talk_shortcut: "Ctrl+Alt+Space",
   llm_control_base_url: "http://192.168.1.151:18082",
   searxng_url: "http://192.168.1.151:8888",
   tts_voice: "Microsoft Zira Desktop",
@@ -260,6 +261,18 @@ export function SettingsPanel({ onSaved }: SettingsPanelProps) {
                   placeholder="4"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Global push-to-talk shortcut</Label>
+              <Input
+                value={field(values, "push_to_talk_shortcut")}
+                onChange={(e) => set("push_to_talk_shortcut", e.target.value)}
+                placeholder="Ctrl+Alt+Space"
+              />
+              <p className="text-xs text-muted-foreground">
+                Registered by the Tauri host. Press starts listening; release stops and sends.
+              </p>
             </div>
 
             <div className="rounded-lg border bg-muted/25 p-3 text-xs text-muted-foreground">

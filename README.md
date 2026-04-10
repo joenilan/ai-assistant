@@ -14,13 +14,13 @@ This scaffold currently proves the first milestone:
 - web search grounding through SearXNG
 - local text-file grounding for file-based answers
 - local Windows-native TTS with voice selection, output-device routing, and stop support
-- first-pass click-to-talk with local `whisper.cpp` transcription on the PC
+- click-to-talk, global push-to-talk, and optional open-mic voice input with local `whisper.cpp`
 - personality presets plus custom personality guidance in app settings
 - environment-driven runtime config
 - backend-owned model reporting, status checks, and streamed replies
 - frontend-triggered model switching over LAN through the Pi control API
 
-Push-to-talk, tray behavior, and the avatar overlay come next.
+Avatar overlay work, voice polish, and tighter tool permissions come next.
 
 ## Current Model Recommendation
 
@@ -121,28 +121,28 @@ cargo check
 
 ## Next Milestones
 
-1. Add push-to-talk with `whisper.cpp`.
-2. Add tray presence and the transparent avatar overlay window.
-3. Add smarter auto-routing and tighter file permission boundaries.
-4. Add memory/settings persistence beyond local browser storage.
+1. Add the transparent avatar overlay window.
+2. Tighten tool permissions and smarter auto-routing.
+3. Improve voice polish, interruption, and device controls.
+4. Add richer memory review and assistant-state UI.
 
 ## Voice Input
 
-The app now supports a first-pass local speech-input path:
+The app now supports three local speech-input paths:
 
-- click `Record voice`
-- speak into the PC microphone
-- click `Stop recording`
-- the app sends the recorded WAV to local `whisper.cpp`
-- the transcript is inserted into the composer for review before sending
+- click `Record voice` to capture a review-first draft
+- use the configured global push-to-talk shortcut to capture and send on release
+- enable `Open mic` in the Voice panel to auto-detect utterances and send them
+- all three paths keep audio on the PC and transcribe with local `whisper.cpp`
 
 Set these before using it:
 
 - `WHISPER_CPP_PATH` to `whisper-cli.exe` or its containing directory
 - `WHISPER_MODEL_PATH` to a local Whisper model such as `ggml-base.en.bin`
 - optional: `STT_LANGUAGE` and `STT_THREADS`
+- optional: `PUSH_TO_TALK_SHORTCUT`, for example `Ctrl+Alt+Space`
 
-This is intentionally conservative for v1. It is not wake word and it is not global push-to-talk yet.
+This is still intentionally conservative for v1. Open mic is VAD-based local speech detection, not a wake word.
 
 Project direction and architecture notes live in [AGENTS.md](./AGENTS.md).
 

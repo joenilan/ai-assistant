@@ -9,6 +9,26 @@ export interface ActiveAudioCapture {
   cancel: () => Promise<void>;
 }
 
+export interface OpenMicSegment {
+  recording: RecordedAudio;
+}
+
+export interface OpenMicMonitorOptions {
+  onSegment: (segment: OpenMicSegment) => void | Promise<void>;
+  onSpeechStart?: () => void;
+  onSpeechEnd?: () => void;
+  speechThreshold?: number;
+  minSpeechMs?: number;
+  silenceMs?: number;
+  maxSpeechMs?: number;
+  preRollMs?: number;
+}
+
+export interface ActiveOpenMicMonitor {
+  setPaused: (paused: boolean) => void;
+  stop: () => Promise<void>;
+}
+
 type AudioContextConstructor = typeof AudioContext;
 
 function getAudioContextConstructor(): AudioContextConstructor {
@@ -31,6 +51,20 @@ function mergeBuffers(chunks: Float32Array[], totalLength: number) {
   }
 
   return result;
+}
+
+function bufferDurationMs(sampleCount: number, sampleRate: number) {
+  return (sampleCount / sampleRate) * 1000;
+}
+
+function calculateRms(samples: Float32Array) {
+  let total = 0;
+
+  for (let index = 0; index < samples.length; index += 1) {
+    total += samples[index] * samples[index];
+  }
+
+  return Math.sqrt(total / samples.length);
 }
 
 function encodeWav(samples: Float32Array, sampleRate: number) {
@@ -139,6 +173,177 @@ export async function startAudioCapture(): Promise<ActiveAudioCapture> {
       };
     },
     async cancel() {
+      await teardown();
+    },
+  };
+}
+
+export async function startOpenMicMonitor(
+  options: OpenMicMonitorOptions,
+): Promise<ActiveOpenMicMonitor> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone capture is not available in this runtime.");
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  });
+  const AudioContextClass = getAudioContextConstructor();
+  const audioContext = new AudioContextClass();
+  const source = audioContext.createMediaStreamSource(stream);
+  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+  const silentGain = audioContext.createGain();
+  const speechThreshold = options.speechThreshold ?? 0.02;
+  const minSpeechMs = options.minSpeechMs ?? 500;
+  const silenceMs = options.silenceMs ?? 900;
+  const maxSpeechMs = options.maxSpeechMs ?? 15000;
+  const preRollMs = options.preRollMs ?? 250;
+  const preRollChunks: Float32Array[] = [];
+  let preRollDurationMs = 0;
+  let utteranceChunks: Float32Array[] = [];
+  let utteranceLength = 0;
+  let utteranceDurationMs = 0;
+  let trailingSilenceMs = 0;
+  let speaking = false;
+  let paused = false;
+  let stopped = false;
+
+  silentGain.gain.value = 0;
+
+  function resetUtterance() {
+    utteranceChunks = [];
+    utteranceLength = 0;
+    utteranceDurationMs = 0;
+    trailingSilenceMs = 0;
+    speaking = false;
+  }
+
+  function pushToPreRoll(chunk: Float32Array, durationMs: number) {
+    preRollChunks.push(chunk);
+    preRollDurationMs += durationMs;
+
+    while (preRollChunks.length && preRollDurationMs > preRollMs) {
+      const removed = preRollChunks.shift();
+      if (removed) {
+        preRollDurationMs -= bufferDurationMs(removed.length, audioContext.sampleRate);
+      }
+    }
+  }
+
+  function finalizeUtterance() {
+    const effectiveSpeechMs = utteranceDurationMs - trailingSilenceMs;
+    const finalizedChunks = utteranceChunks;
+    const finalizedLength = utteranceLength;
+    resetUtterance();
+
+    if (!finalizedLength || effectiveSpeechMs < minSpeechMs) {
+      return;
+    }
+
+    options.onSpeechEnd?.();
+
+    const merged = mergeBuffers(finalizedChunks, finalizedLength);
+    const recording: RecordedAudio = {
+      wavBytes: encodeWav(merged, audioContext.sampleRate),
+      durationMs: Math.round((merged.length / audioContext.sampleRate) * 1000),
+      sampleRate: audioContext.sampleRate,
+    };
+
+    void Promise.resolve(options.onSegment({ recording })).catch((error) => {
+      console.error("Open mic transcription pipeline failed.", error);
+    });
+  }
+
+  processor.onaudioprocess = (event) => {
+    if (stopped) {
+      return;
+    }
+
+    const channelData = event.inputBuffer.getChannelData(0);
+    const copy = new Float32Array(channelData.length);
+    copy.set(channelData);
+    const durationMs = bufferDurationMs(copy.length, audioContext.sampleRate);
+    const rms = calculateRms(copy);
+
+    if (paused) {
+      if (speaking) {
+        resetUtterance();
+      }
+
+      preRollChunks.length = 0;
+      preRollDurationMs = 0;
+      return;
+    }
+
+    pushToPreRoll(copy, durationMs);
+
+    if (!speaking) {
+      if (rms >= speechThreshold) {
+        speaking = true;
+        options.onSpeechStart?.();
+        utteranceChunks = [...preRollChunks];
+        utteranceLength = utteranceChunks.reduce((total, chunk) => total + chunk.length, 0);
+        utteranceDurationMs = utteranceChunks.reduce(
+          (total, chunk) => total + bufferDurationMs(chunk.length, audioContext.sampleRate),
+          0,
+        );
+        trailingSilenceMs = 0;
+        preRollChunks.length = 0;
+        preRollDurationMs = 0;
+      }
+      return;
+    }
+
+    utteranceChunks.push(copy);
+    utteranceLength += copy.length;
+    utteranceDurationMs += durationMs;
+
+    if (rms >= speechThreshold) {
+      trailingSilenceMs = 0;
+    } else {
+      trailingSilenceMs += durationMs;
+    }
+
+    if (utteranceDurationMs >= maxSpeechMs || trailingSilenceMs >= silenceMs) {
+      finalizeUtterance();
+    }
+  };
+
+  source.connect(processor);
+  processor.connect(silentGain);
+  silentGain.connect(audioContext.destination);
+
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
+
+  async function teardown() {
+    if (stopped) {
+      return;
+    }
+
+    stopped = true;
+    processor.disconnect();
+    silentGain.disconnect();
+    source.disconnect();
+    stream.getTracks().forEach((track) => track.stop());
+    await audioContext.close();
+  }
+
+  return {
+    setPaused(nextPaused) {
+      paused = nextPaused;
+
+      if (paused && speaking) {
+        resetUtterance();
+      }
+    },
+    async stop() {
       await teardown();
     },
   };
