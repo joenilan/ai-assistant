@@ -57,6 +57,17 @@ import {
   type TtsStateEvent,
   type TtsStatus,
 } from "@/lib/assistant";
+import {
+  applyClientPromptPrefix,
+  formatCurrentDateContext,
+  normalizeConversation,
+} from "@/lib/conversation-context";
+import {
+  getActiveProfile,
+  getBackendModel,
+  getProfileTierLabel,
+  sortModelProfiles,
+} from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
 
 const starterPrompts = [
@@ -126,48 +137,6 @@ function createMessage(
   };
 }
 
-function normalizeConversation(messages: ChatMessage[]) {
-  const contextualMessages = messages.filter((message) => message.includeInContext !== false);
-  const normalized: Array<{ role: ChatMessage["role"]; content: string }> = [];
-
-  for (const message of contextualMessages) {
-    if (!normalized.length) {
-      if (message.role !== "user") {
-        continue;
-      }
-
-      normalized.push({
-        role: message.role,
-        content: message.content,
-      });
-      continue;
-    }
-
-    const lastMessage = normalized[normalized.length - 1];
-
-    if (lastMessage.role === message.role) {
-      normalized[normalized.length - 1] = {
-        role: message.role,
-        content: message.content,
-      };
-      continue;
-    }
-
-    normalized.push({
-      role: message.role,
-      content: message.content,
-    });
-  }
-
-  const recentMessages = normalized.slice(-8);
-
-  while (recentMessages[0]?.role === "assistant") {
-    recentMessages.shift();
-  }
-
-  return recentMessages;
-}
-
 function formatLatency(status: BackendStatus | null) {
   if (!status?.ok) {
     return "Unavailable";
@@ -178,62 +147,6 @@ function formatLatency(status: BackendStatus | null) {
 
 function wait(delayMs: number) {
   return new Promise((resolve) => window.setTimeout(resolve, delayMs));
-}
-
-function getActiveProfile(controlState: ControlState | null) {
-  if (!controlState) {
-    return null;
-  }
-
-  return (
-    controlState.models.find((model) => model.active) ||
-    controlState.models.find((model) => model.alias === controlState.currentAlias) ||
-    null
-  );
-}
-
-function getBackendModel(
-  controlState: ControlState | null,
-  backendStatus: BackendStatus | null,
-  runtimeConfig: RuntimeConfig | null,
-) {
-  return (
-    controlState?.liveModel ||
-    controlState?.currentModel ||
-    backendStatus?.activeModel ||
-    runtimeConfig?.llmModel ||
-    ""
-  );
-}
-
-function applyClientPromptPrefix(
-  messages: Array<{ role: ChatMessage["role"]; content: string }>,
-  clientPromptPrefix: string,
-) {
-  if (!clientPromptPrefix.trim()) {
-    return messages;
-  }
-
-  const firstUserIndex = messages.findIndex((message) => message.role === "user");
-
-  if (firstUserIndex === -1) {
-    return messages;
-  }
-
-  return messages.map((message, index) => {
-    if (index !== firstUserIndex || message.role !== "user") {
-      return message;
-    }
-
-    if (message.content.startsWith(clientPromptPrefix)) {
-      return message;
-    }
-
-    return {
-      ...message,
-      content: `${clientPromptPrefix}${message.content}`,
-    };
-  });
 }
 
 function formatAssistantMeta(
@@ -414,6 +327,7 @@ export default function App() {
   // Summarization fires every SUMMARIZE_EVERY exchanges (background, non-blocking).
   const exchangeCountRef = useRef(0);
   const activeProfile = getActiveProfile(controlState);
+  const sortedModelProfiles = sortModelProfiles(controlState?.models || []);
 
   const backendModel = getBackendModel(controlState, backendStatus, runtimeConfig);
   const sendDisabled =
@@ -1098,7 +1012,7 @@ export default function App() {
         maxTokens: 192,
         temperature: 0.35,
         systemPrompt: runtimeConfig.assistantSystemPrompt,
-        currentDate: new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+        currentDate: formatCurrentDateContext(),
         requestId: streamRequestId,
         toolMode,
         filePath: filePath.trim() || undefined,
@@ -1517,6 +1431,22 @@ export default function App() {
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Default alias
+                    </span>
+                    <Badge variant="outline" className="bg-muted/40">
+                      {controlState?.defaultAlias || "Unknown"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Backup alias
+                    </span>
+                    <Badge variant="outline" className="bg-muted/40">
+                      {controlState?.backupAlias || "Unknown"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Control ready
                     </span>
                     <Badge
@@ -1576,26 +1506,39 @@ export default function App() {
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-3">
-                {controlState?.models.length ? (
+                {sortedModelProfiles.length ? (
                   <>
-                    {controlState.models.map((model) => {
-                      const isActive = model.active || model.alias === controlState.currentAlias;
+                    {sortedModelProfiles.map((model) => {
+                      const isActive = model.active || model.alias === controlState?.currentAlias;
                       const isSwitchingToModel = switchingAlias === model.alias;
 
                       return (
                         <article
                           key={model.alias}
-                          className={`rounded-lg border p-3 ${
-                            isActive ? "border-primary/30 bg-primary/5" : "bg-background"
-                          }`}
+                          className={cn(
+                            "rounded-lg border p-3",
+                            isActive
+                              ? "border-primary/30 bg-primary/5"
+                              : model.uiTier === "quality_slow"
+                                ? "border-amber-500/20 bg-amber-500/5"
+                                : "bg-background",
+                          )}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-medium">{model.alias}</span>
                                 <Badge variant={isActive ? "secondary" : "outline"}>
-                                  {isActive ? "Active" : model.role}
+                                  {isActive ? "Active" : getProfileTierLabel(model)}
                                 </Badge>
+                                {model.recommended ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-transparent bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                  >
+                                    Recommended
+                                  </Badge>
+                                ) : null}
                               </div>
                               <p className="text-xs text-muted-foreground">{model.model}</p>
                               <p className="text-sm text-muted-foreground">{model.note}</p>

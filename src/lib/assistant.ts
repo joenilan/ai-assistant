@@ -36,6 +36,8 @@ export interface ControlModelProfile {
   alias: string;
   model: string;
   role: string;
+  uiTier: string;
+  recommended: boolean;
   clientPromptPrefix: string;
   note: string;
   active: boolean;
@@ -44,6 +46,8 @@ export interface ControlModelProfile {
 export interface ControlState {
   ready: boolean;
   currentAlias?: string | null;
+  defaultAlias?: string | null;
+  backupAlias?: string | null;
   currentModel?: string | null;
   liveModel?: string | null;
   configuredModel?: string | null;

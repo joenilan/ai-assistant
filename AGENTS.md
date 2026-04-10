@@ -1,9 +1,18 @@
 # AI Assistant Project Guide
 
 ## Status
-- This folder is the starting point for a new local AI assistant project.
-- There is no application code in the repo yet; this file is currently the main source of project direction.
+- This repo now contains a working desktop assistant shell with real application code.
+- The current app already includes:
+  - `Tauri 2 + React + TypeScript`
+  - Pi-backed streamed chat
+  - Pi control-API model switching over LAN
+  - tool modes for direct chat, web search, and local file grounding
+  - persisted settings and conversation history in SQLite
+  - rolling conversation summaries stored in the DB and injected into prompt assembly
+  - Windows-native TTS with selectable voices and output devices
+  - tray presence and close-to-tray behavior
 - Treat the Raspberry Pi backend as an existing external dependency and a hard performance constraint.
+- `src/App.tsx` is still too large and should be refactored incrementally rather than treated as the long-term final shape.
 
 ## Product Vision
 - Build a local-first assistant that can answer by text or voice.
@@ -133,6 +142,8 @@ This split matters because the selected Pi-scale models will degrade badly if ev
 - Inject only task-relevant retrieved facts, not raw dumps.
 - Summarize search and file results before forwarding them to the Pi.
 - Default to short replies unless the user explicitly asks for depth.
+- The current implementation already persists conversation summaries in SQLite and injects them from the Rust host before chat generation.
+- The current implementation still trims recent raw turns with a blunt turn-count heuristic; that should eventually be replaced with a token-budget policy.
 
 ## Voice And Avatar Strategy
 - Run voice input on the PC.
@@ -197,6 +208,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add basic text chat
 - Add clear error handling for backend failure
 - Add short system prompts and reply limits
+- Current state: done
 
 ### Phase 2: Tool-Backed Answers
 - Add internet search as an explicit app-owned tool
@@ -204,6 +216,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add a tool routing layer
 - Add evidence summarization before model calls
 - Add simple memory and conversation summaries
+- Current state: mostly done for first pass; needs tighter prompt budgeting and stricter file boundaries
 
 ### Phase 3: Voice Assistant
 - Add Windows-native text-to-speech
@@ -211,6 +224,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add `whisper.cpp` speech-to-text
 - Add interrupt and cancel behavior
 - Add optional wake word after the voice loop is stable
+- Current state: TTS is in, push-to-talk and STT are not
 
 ### Phase 4: Living Avatar
 - Add avatar rendering
@@ -341,6 +355,11 @@ curl http://192.168.1.151:18080/v1/chat/completions \
 - Control switch endpoint: `http://192.168.1.151:18082/api/switch`
 - The desktop app can switch Pi model profiles over LAN through the control API; shell access is not required.
 - The control API returns the active alias and any required `client_prompt_prefix`.
+- The control API may also return model-policy metadata such as:
+  - `default_alias`
+  - `backup_alias`
+  - `ui_tier`
+  - `recommended`
 - When `qwen3` is active, prepend the returned client prompt prefix so `/no_think` is applied automatically.
 
 Commands:
@@ -396,6 +415,12 @@ Alias mapping:
 - Default the app to `gemma-3-1b-it-Q4_K_M` unless the environment overrides it.
 - Do not expose Qwen3 as a normal profile until the app can reliably force `/no_think` or an equivalent runtime switch.
 - Do not present model choice as a UI-owned feature unless the app can actually change the active model on the Pi.
+- Inject trusted live context explicitly for current-sensitive requests.
+  - current local date/time
+  - search evidence
+  - file excerpts
+  - any tool results the app already knows
+- Treat prompt assembly discipline as a higher priority than chasing model upgrades once a viable default model is in place.
 
 ## Suggested Environment Variables
 - `LLM_BASE_URL`
@@ -419,6 +444,7 @@ Alias mapping:
 - `TTS_VOICE`
 - `TTS_OUTPUT_DEVICE`
 - `TTS_VOLUME`
+- `TTS_PITCH`
 - `WHISPER_CPP_PATH`
 - `WHISPER_MODEL_PATH`
 - `PUSH_TO_TALK_SHORTCUT`
