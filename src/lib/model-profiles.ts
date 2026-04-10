@@ -40,15 +40,15 @@ export function sortModelProfiles(models: ControlModelProfile[]) {
       return left.active ? -1 : 1;
     }
 
-    if (left.recommended !== right.recommended) {
-      return left.recommended ? -1 : 1;
-    }
-
     const leftRank = profileTierRank[left.uiTier] ?? 99;
     const rightRank = profileTierRank[right.uiTier] ?? 99;
 
     if (leftRank !== rightRank) {
       return leftRank - rightRank;
+    }
+
+    if (left.recommended !== right.recommended) {
+      return left.recommended ? -1 : 1;
     }
 
     return left.alias.localeCompare(right.alias);

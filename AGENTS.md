@@ -387,18 +387,11 @@ Alias mapping:
 - Search should be treated as an explicit application tool, not a model responsibility.
 - Fetch search results outside the model, then pass cleaned context into the prompt.
 
-## Related Systems
-### `zmbly`
-- Repo: `/home/dietpi/zmbly`
-- It was updated locally to support either Ollama or OpenAI-compatible backends.
-- It now points at the local `llama.cpp` endpoint via `config.env.local`.
-- Those changes are local only and were not committed or pushed upstream.
-
-### `living-assistant`
-- App path: `/home/dietpi/living-assistant`
-- LAN URL: `http://192.168.1.151:8095`
-- It uses the local `llama.cpp` backend and local SearXNG.
-- Keep it separate from this project; sharing the Pi backend is fine, but concurrent use will contend for the same limited hardware.
+## External Dependencies
+- The Raspberry Pi `llama.cpp` backend and its control API are real external dependencies for this repo.
+- The local SearXNG instance is also an external dependency when web grounding is enabled.
+- Other assistant experiments or sibling projects on the same machine are not part of this repo and should not guide changes here.
+- If the Pi hosts multiple apps that share the same inference stack, assume they will contend for the same limited hardware unless proven otherwise.
 
 ## Guidance For This Repo
 - Read backend URLs and model names from environment variables; do not hardcode LAN addresses into app code.
