@@ -34,14 +34,40 @@ export function getBackendModel(
   );
 }
 
-export function sortModelProfiles(models: ControlModelProfile[]) {
+export function getEffectiveProfileTier(
+  profile: ControlModelProfile,
+  controlState: ControlState | null,
+) {
+  if (controlState?.defaultAlias === profile.alias) {
+    return "default";
+  }
+
+  if (controlState?.backupAlias === profile.alias) {
+    return "backup";
+  }
+
+  if (profile.uiTier in profileTierRank) {
+    return profile.uiTier;
+  }
+
+  if (profile.role in profileTierRank) {
+    return profile.role;
+  }
+
+  return "alternate";
+}
+
+export function sortModelProfiles(
+  models: ControlModelProfile[],
+  controlState: ControlState | null,
+) {
   return [...models].sort((left, right) => {
     if (left.active !== right.active) {
       return left.active ? -1 : 1;
     }
 
-    const leftRank = profileTierRank[left.uiTier] ?? 99;
-    const rightRank = profileTierRank[right.uiTier] ?? 99;
+    const leftRank = profileTierRank[getEffectiveProfileTier(left, controlState)] ?? 99;
+    const rightRank = profileTierRank[getEffectiveProfileTier(right, controlState)] ?? 99;
 
     if (leftRank !== rightRank) {
       return leftRank - rightRank;
@@ -55,8 +81,11 @@ export function sortModelProfiles(models: ControlModelProfile[]) {
   });
 }
 
-export function getProfileTierLabel(profile: ControlModelProfile) {
-  switch (profile.uiTier) {
+export function getProfileTierLabel(
+  profile: ControlModelProfile,
+  controlState: ControlState | null,
+) {
+  switch (getEffectiveProfileTier(profile, controlState)) {
     case "default":
       return "Default";
     case "backup":

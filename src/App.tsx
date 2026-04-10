@@ -63,6 +63,7 @@ import {
   normalizeConversation,
 } from "@/lib/conversation-context";
 import {
+  getEffectiveProfileTier,
   getActiveProfile,
   getBackendModel,
   getProfileTierLabel,
@@ -327,7 +328,7 @@ export default function App() {
   // Summarization fires every SUMMARIZE_EVERY exchanges (background, non-blocking).
   const exchangeCountRef = useRef(0);
   const activeProfile = getActiveProfile(controlState);
-  const sortedModelProfiles = sortModelProfiles(controlState?.models || []);
+  const sortedModelProfiles = sortModelProfiles(controlState?.models || [], controlState);
 
   const backendModel = getBackendModel(controlState, backendStatus, runtimeConfig);
   const sendDisabled =
@@ -1510,6 +1511,7 @@ export default function App() {
                   <>
                     {sortedModelProfiles.map((model) => {
                       const isActive = model.active || model.alias === controlState?.currentAlias;
+                      const effectiveTier = getEffectiveProfileTier(model, controlState);
                       const isSwitchingToModel = switchingAlias === model.alias;
 
                       return (
@@ -1519,7 +1521,7 @@ export default function App() {
                             "rounded-lg border p-3",
                             isActive
                               ? "border-primary/30 bg-primary/5"
-                              : model.uiTier === "quality_slow"
+                              : effectiveTier === "quality_slow"
                                 ? "border-amber-500/20 bg-amber-500/5"
                                 : "bg-background",
                           )}
@@ -1529,7 +1531,7 @@ export default function App() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-medium">{model.alias}</span>
                                 <Badge variant={isActive ? "secondary" : "outline"}>
-                                  {isActive ? "Active" : getProfileTierLabel(model)}
+                                  {isActive ? "Active" : getProfileTierLabel(model, controlState)}
                                 </Badge>
                                 {model.recommended ? (
                                   <Badge
