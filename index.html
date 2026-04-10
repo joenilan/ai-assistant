@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>AI Assistant</title>
+    <script>
+      (() => {
+        const storageKey = "ai-assistant-theme";
+        const storedTheme = window.localStorage.getItem(storageKey);
+        const theme = storedTheme === "light" ? "light" : "dark";
+        document.documentElement.classList.toggle("dark", theme === "dark");
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
 
   <body>

@@ -57,7 +57,7 @@
 
 ### Initial Voice Backends
 - `STT`: `whisper.cpp`
-- `TTS`: Windows `SAPI`
+- `TTS`: Windows `WinRT` / OneCore voices
 - `Later TTS upgrade path`: `Piper`
 
 ### Why This Stack
@@ -160,21 +160,21 @@ This split matters because the selected Pi-scale models will degrade badly if ev
 - Keep the STT integration behind an interface so a lighter native Windows recognizer can be added later if needed.
 
 ### Text-To-Speech
-- Use Windows `SAPI` as the initial TTS backend.
+- Use Windows `WinRT` speech synthesis as the initial TTS backend.
 - This keeps the first implementation free, local, and easy to integrate.
 - Build the TTS integration behind an interface from day one.
 - Plan `Piper` as the first voice-quality upgrade path after the assistant loop is working.
 
 ### Why This Pairing
 - `whisper.cpp` aligns well with the existing `llama.cpp`-style local inference approach.
-- `SAPI` is good enough to get the assistant talking without adding another heavy subsystem immediately.
+- Windows-native `WinRT` speech gives the app better voice coverage and cleaner output routing without adding a cloud dependency.
 - This pairing minimizes early complexity while preserving a clean path to better voices later.
 
 ## Recommended First Prototypes
 - Prototype a transparent Tauri avatar window that can be moved, pinned, and toggled between interactive and click-through.
 - Prototype tray presence plus a global push-to-talk shortcut.
 - Prototype text chat to the Pi before any voice work.
-- Prototype local text-to-speech playback on the PC with `SAPI`.
+- Prototype local text-to-speech playback on the PC with Windows `WinRT`.
 - Prototype mic capture to local speech-to-text on the PC with `whisper.cpp`.
 - Prototype one full loop: text or voice input -> optional tools -> Pi reply -> TTS output -> avatar speaking state.
 
@@ -206,7 +206,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - Add simple memory and conversation summaries
 
 ### Phase 3: Voice Assistant
-- Add `SAPI` text-to-speech
+- Add Windows-native text-to-speech
 - Add push-to-talk
 - Add `whisper.cpp` speech-to-text
 - Add interrupt and cancel behavior
@@ -232,7 +232,7 @@ These prototypes should be completed before heavy UI or memory work because they
 - We should verify which OpenAI-style features actually work instead of assuming parity.
 - The desktop shell is currently expected to be Tauri-based, not browser-only.
 - The product is optimizing for a lightweight always-running PC assistant, not a heavyweight local app shell.
-- The current voice plan is `whisper.cpp` on the PC for STT and Windows `SAPI` on the PC for initial TTS.
+- The current voice plan is `whisper.cpp` on the PC for STT and Windows `WinRT` on the PC for initial TTS.
 - Text chat comes before voice; wake word comes after push-to-talk.
 
 ## Questions For The Pi Side
@@ -336,6 +336,12 @@ curl http://192.168.1.151:18080/v1/chat/completions \
 
 ## Model Switching On The Pi
 - Helper script: `/home/dietpi/bin/llama-model`
+- Control health endpoint: `http://192.168.1.151:18082/health`
+- Control models endpoint: `http://192.168.1.151:18082/api/models`
+- Control switch endpoint: `http://192.168.1.151:18082/api/switch`
+- The desktop app can switch Pi model profiles over LAN through the control API; shell access is not required.
+- The control API returns the active alias and any required `client_prompt_prefix`.
+- When `qwen3` is active, prepend the returned client prompt prefix so `/no_think` is applied automatically.
 
 Commands:
 
@@ -386,7 +392,7 @@ Alias mapping:
 - Keep the first release focused on desktop utility, voice, and responsiveness.
 - Do not let avatar polish or game ideas delay the first working assistant loop.
 - Prefer sidecars or local helper services for STT and TTS over tightly coupling the app to browser-specific speech features.
-- Build all voice backends behind replaceable interfaces so `SAPI` and `whisper.cpp` are implementation choices, not architectural traps.
+- Build all voice backends behind replaceable interfaces so Windows `WinRT`, `Piper`, and `whisper.cpp` are implementation choices, not architectural traps.
 - Default the app to `gemma-3-1b-it-Q4_K_M` unless the environment overrides it.
 - Do not expose Qwen3 as a normal profile until the app can reliably force `/no_think` or an equivalent runtime switch.
 - Do not present model choice as a UI-owned feature unless the app can actually change the active model on the Pi.
@@ -395,6 +401,10 @@ Alias mapping:
 - `LLM_BASE_URL`
 - `LLM_CHAT_ENDPOINT`
 - `LLM_MODELS_ENDPOINT`
+- `LLM_CONTROL_BASE_URL`
+- `LLM_CONTROL_HEALTH_ENDPOINT`
+- `LLM_CONTROL_MODELS_ENDPOINT`
+- `LLM_CONTROL_SWITCH_ENDPOINT`
 - `LLM_MODEL`
 - `LLM_TIMEOUT_MS`
 - `LLM_MAX_INPUT_TOKENS`
@@ -407,13 +417,15 @@ Alias mapping:
 - `STT_MODEL`
 - `TTS_BACKEND`
 - `TTS_VOICE`
+- `TTS_OUTPUT_DEVICE`
+- `TTS_VOLUME`
 - `WHISPER_CPP_PATH`
 - `WHISPER_MODEL_PATH`
 - `PUSH_TO_TALK_SHORTCUT`
 
 ## Open Decisions
 - Which `whisper.cpp` model is the best default balance of accuracy and latency on the PC
-- Which `SAPI` voice should be the default first voice
+- Which Windows voice should be the default first voice
 - Whether the avatar should be rendered with standard web UI, canvas, or a dedicated character layer
 - Whether wake word belongs in the first public version or a later phase
 - Whether the first release should persist long-term memory by default

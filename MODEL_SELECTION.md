@@ -30,7 +30,8 @@ Current model choice for the Windows-side assistant shell.
 
 - Set the app default model to `gemma-3-1b-it-Q4_K_M.gguf`.
 - Keep model selection available in the UI.
-- Do not expose Qwen3 as a normal preset until the app can reliably inject `/no_think` or an equivalent runtime switch.
+- Route model switching through the Pi control API, not shell access.
+- Expose `Qwen3-1.7B-Q4_K_M.gguf` only through the profile that injects `/no_think`.
 
 ## Benchmark Summary
 
